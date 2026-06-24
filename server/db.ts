@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, subscribers, InsertSubscriber } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,30 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// ── Subscriber helpers ──────────────────────────────────────────────────────
+
+export async function addSubscriber(email: string): Promise<{ created: boolean }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  try {
+    await db.insert(subscribers).values({ email, status: "active" });
+    return { created: true };
+  } catch (err: unknown) {
+    // MySQL duplicate key error code 1062
+    if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "ER_DUP_ENTRY") {
+      return { created: false };
+    }
+    throw err;
+  }
+}
+
+export async function getActiveSubscribers(): Promise<{ id: number; email: string }[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select({ id: subscribers.id, email: subscribers.email })
+    .from(subscribers)
+    .where(eq(subscribers.status, "active"));
+}
