@@ -25,6 +25,7 @@ function Nav() {
           <a href="#how-it-works" className="hover:text-[#E30613] transition-colors">How It Works</a>
           <a href="#alerts" className="hover:text-[#E30613] transition-colors">Sample Alerts</a>
           <a href="#pricing" className="hover:text-[#E30613] transition-colors">Pricing</a>
+          <a href="/design" className="text-[#E30613] font-bold hover:underline transition-colors">Evolva</a>
         </div>
         <a
           href="#subscribe"
@@ -68,6 +69,12 @@ function Hero() {
               className="inline-block border border-black text-black text-[12px] tracking-[0.15em] uppercase font-bold px-8 py-4 hover:bg-black hover:text-white transition-colors"
             >
               See Sample
+            </a>
+            <a
+              href="/design"
+              className="inline-block border border-[#E30613] text-[#E30613] text-[12px] tracking-[0.15em] uppercase font-bold px-8 py-4 hover:bg-[#E30613] hover:text-white transition-colors"
+            >
+              Run Molecular Design →
             </a>
           </div>
         </div>

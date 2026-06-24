@@ -34,13 +34,19 @@
 
 ## Molecular Design (Evolva) — Sprint 2
 
-- [ ] server/routers/design.ts — 5 tRPC procedures (evolve, getTargets, getProgress, getResults, getVerification)
-- [ ] In-memory run store with simulated evolution loop
-- [ ] Mount designRouter in server/routers.ts
-- [ ] client/src/pages/Design.tsx — /design target cards listing page
-- [ ] client/src/pages/DesignTarget.tsx — /design/:target detail + progress + results
-- [ ] Register /design and /design/:target routes in App.tsx
-- [ ] "Order Synthesis" button linking to GenScript cart with pre-filled sequence
-- [ ] Evidence trail expandable L1-L5 per claim
-- [ ] Vitest tests for design router
+- [x] server/routers/design.ts — 5 tRPC procedures (evolve, getTargets, getProgress, getResults, getVerification)
+- [x] In-memory run store with simulated evolution loop
+- [x] Mount designRouter in server/routers.ts
+- [x] client/src/pages/Design.tsx — /design target cards listing page
+- [x] client/src/pages/DesignTarget.tsx — /design/:target detail + progress + results
+- [x] Register /design and /design/:target routes in App.tsx
+- [x] "Order Synthesis" button linking to GenScript cart with pre-filled sequence
+- [x] Evidence trail expandable L1-L5 per claim
+- [x] Vitest tests for design router
+- [x] Checkpoint saved
+
+## Copy Updates — Sprint 3
+- [x] Add EVOLVA nav link to homepage nav bar
+- [x] Add "RUN MOLECULAR DESIGN →" second CTA button in hero
+- [x] Add Generic Signal wordmark + back-link to /design page nav
 - [ ] Checkpoint saved

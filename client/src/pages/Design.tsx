@@ -32,6 +32,16 @@ export default function Design() {
     <div className="min-h-screen bg-white">
       {/* Header */}
       <div className="border-b border-black">
+        {/* Top nav bar */}
+        <div className="border-b border-black/10 bg-black">
+          <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+            <a href="/" className="flex items-center gap-2 group">
+              <div className="w-2.5 h-2.5 bg-[#E30613]" />
+              <span className="text-[11px] tracking-[0.2em] uppercase font-bold text-white group-hover:text-[#E30613] transition-colors">Generic Signal</span>
+            </a>
+            <a href="/" className="text-[11px] tracking-[0.12em] uppercase font-medium text-white/60 hover:text-white transition-colors">← Patent Alerts</a>
+          </div>
+        </div>
         <div className="max-w-6xl mx-auto px-6 py-8">
           <div className="flex items-start justify-between">
             <div>
