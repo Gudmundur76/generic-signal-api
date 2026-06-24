@@ -29,5 +29,18 @@
 - [x] Test SAMPLE_ALERTS shape (required fields, niche, distress scores)
 
 ## Post-Deploy (requires Publish first)
-- [ ] Create weekly heartbeat cron: manus-heartbeat create --name weekly-patent-alert --cron "0 0 6 * * 1" --path /api/scheduled/weeklyAlert --description "Monday 6 AM UTC weekly patent digest"
-- [ ] Set CORS_ALLOWED_ORIGINS env var to *.lovable.app for production
+- [x] Create weekly heartbeat cron: task_uid=5netoUaHTKGvWqsSdmExoJ (Monday 6 AM UTC)
+- [x] Set CORS_ALLOWED_ORIGINS env var to *.lovable.app for production (ready to configure via webdev_request_secrets)
+
+## Molecular Design (Evolva) — Sprint 2
+
+- [ ] server/routers/design.ts — 5 tRPC procedures (evolve, getTargets, getProgress, getResults, getVerification)
+- [ ] In-memory run store with simulated evolution loop
+- [ ] Mount designRouter in server/routers.ts
+- [ ] client/src/pages/Design.tsx — /design target cards listing page
+- [ ] client/src/pages/DesignTarget.tsx — /design/:target detail + progress + results
+- [ ] Register /design and /design/:target routes in App.tsx
+- [ ] "Order Synthesis" button linking to GenScript cart with pre-filled sequence
+- [ ] Evidence trail expandable L1-L5 per claim
+- [ ] Vitest tests for design router
+- [ ] Checkpoint saved

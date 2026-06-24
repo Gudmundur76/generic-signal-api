@@ -3,6 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { alertsRouter } from "./routers/alerts";
+import { designRouter } from "./routers/design";
 import { addSubscriber } from "./db";
 import { z } from "zod";
 
@@ -21,6 +22,7 @@ export const appRouter = router({
   }),
 
   alerts: alertsRouter,
+  design: designRouter,
 
   // Flat subscribe alias — satisfies exact path POST /api/trpc/subscribe
   subscribe: publicProcedure
