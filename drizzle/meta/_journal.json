@@ -15,6 +15,13 @@
       "when": 1782336135291,
       "tag": "0001_brave_stephen_strange",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1782356410297,
+      "tag": "0002_massive_bruce_banner",
+      "breakpoints": true
     }
   ]
 }

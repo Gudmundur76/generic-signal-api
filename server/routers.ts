@@ -4,6 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { alertsRouter } from "./routers/alerts";
 import { designRouter } from "./routers/design";
+import { partnersRouter } from "./routers/partners";
 import { addSubscriber } from "./db";
 import { z } from "zod";
 
@@ -23,6 +24,7 @@ export const appRouter = router({
 
   alerts: alertsRouter,
   design: designRouter,
+  partners: partnersRouter,
 
   // Flat subscribe alias — satisfies exact path POST /api/trpc/subscribe
   subscribe: publicProcedure

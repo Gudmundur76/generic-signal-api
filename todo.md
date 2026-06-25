@@ -49,4 +49,4 @@
 - [x] Add EVOLVA nav link to homepage nav bar
 - [x] Add "RUN MOLECULAR DESIGN →" second CTA button in hero
 - [x] Add Generic Signal wordmark + back-link to /design page nav
-- [ ] Checkpoint saved
+- [x] Checkpoint saved
