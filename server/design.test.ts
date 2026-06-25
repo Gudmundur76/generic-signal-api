@@ -145,7 +145,7 @@ describe("design.getResults", () => {
     expect(layer.score).toBeGreaterThan(0);
     expect(typeof layer.novelty).toBe("boolean");
     expect(["CLEAR", "RISK", "BLOCKED"]).toContain(layer.patent);
-  });
+  }, 30_000);
 
   it("throws NOT_FOUND for an unknown runId", async () => {
     const caller = appRouter.createCaller(makePublicCtx());

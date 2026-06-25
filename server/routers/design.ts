@@ -112,59 +112,21 @@ const TARGETS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Sequence generators (deterministic mock for v1)
+// Sequence selector — uses only real data from public APIs
 // ---------------------------------------------------------------------------
 
-const DNA_TEMPLATES: Record<string, string[]> = {
-  PCSK9: ["GAGTCCGAGCAGAGGACGAA", "CACCGTCATCGCCATCAACG", "GGAGCTGCAGAAGGTGCTGA"],
-  LPA:   ["GCAGCTGAAGAACGTCATCG", "CTGGACAAGCTCAAGGTCAA", "AAGCAGCTGGAGAACCTGCA"],
-  APOE:  ["CGCAGAGCCGGAGCCCGAGC", "GCAGCGCCTGGAGGAGCTGG", "CAGCGGCTGGAGGAGCTGCA"],
-};
-
-const SMILES_TEMPLATES: Record<string, string[]> = {
-  PCSK9: [
-    "C[C@H](NC(=O)C1CC1)c1ccc(F)cc1",
-    "CC(C)(C)c1ccc(NC(=O)c2cccc(Cl)c2)cc1",
-    "O=C(Nc1ccc(F)cc1)c1ccc(Cl)cc1",
-  ],
-  LPA: [
-    "CC(=O)Nc1ccc(S(=O)(=O)N2CCCC2)cc1",
-    "O=C(O)c1ccc(NC(=O)c2ccccc2)cc1",
-    "Cc1ccc(NC(=O)c2ccc(F)cc2)cc1",
-  ],
-  APOE: [
-    "CC(C)Cc1ccc(C(C)C(=O)O)cc1",
-    "O=C(O)CCc1ccc(NC(=O)c2ccccc2)cc1",
-    "Cc1ccc(C(=O)Nc2ccc(Cl)cc2)cc1",
-  ],
-};
-
-const PROTEIN_TEMPLATES: Record<string, string[]> = {
-  PCSK9: ["MGTVSSRRSWWPLPLCLLLLAAAQGLAAQEDEDGDYEELVLALRQKLIEDLQELRQEAEQRAQHVSQALRQKLEELRQEAEQRAQHVSQ"],
-  LPA:   ["MAWRLLLLAAAFCFAEGQKISASRGGGPQCLQPQEHAGGITCPKGQNTCSQCEEDRRADAHKSEGTFTSDVSSYLEGQAAKEFIAWLVKGR"],
-  APOE:  ["MKVLWAALLVTFLAGCQAKVEQAVETEPEPELRQQTEWQSGQRWELALGRFWDYLRWVQTLSEQVQEELLSSQVTQELRALMDETMKELKAYKSELEEQLTPVAEETRARLSKELQAAQARLGADMEDVCGRLVQYRGEVQAMLGQSTEELRVRLASHLRKLRKRLLRDADDLQKRLAVYQAGAREGAERGLSAIRERLGPLVEQGRVRAATVGSLAGQPLQERAQAWGERLRARMEEMGSRTRDRLDEVKEQVAEVRAKLEEQAQQIRLQAEAFQARLKSWFEPLVEDMQRQWAGLVEKVQAAVGTSAAPVPSDNH"],
-};
-
-const RNA_TEMPLATES: Record<string, string[]> = {
-  PCSK9: ["GCAUCGAGCUGCAGAAGGUG", "CAGCGGCUGGAGGAGCUGCA", "GCAGCGCCUGGAGGAGCUGG"],
-  LPA:   ["GCAGCUGAAGAACGUCAUCG", "CUGGACAAGCUCAAGGUCAA", "AAGCAGCUGGAGAACCUGCA"],
-  APOE:  ["CGCAGAGCCGGAGCCCGAGC", "GCAGCGCCUGGAGGAGCUGG", "CAGCGGCUGGAGGAGCUGCA"],
-};
-
+/**
+ * Return the real sequence for a layer from the run's fetched data.
+ * If no real data was fetched (API down), returns an empty string so the
+ * caller can handle the missing sequence explicitly.
+ */
 function pickSequence(
-  target: string,
+  _target: string,
   layer: MolecularLayer,
-  generation: number,
+  _generation: number,
   realSequences?: Partial<Record<MolecularLayer, MolecularData>>
 ): string {
-  // Prefer real sequence from public APIs; fall back to hardcoded templates
-  const real = realSequences?.[layer];
-  if (real?.sequence) return real.sequence;
-  const idx = generation % 3;
-  if (layer === "dna") return (DNA_TEMPLATES[target] ?? DNA_TEMPLATES.PCSK9)[idx]!;
-  if (layer === "small_molecule") return (SMILES_TEMPLATES[target] ?? SMILES_TEMPLATES.PCSK9)[idx]!;
-  if (layer === "protein") return (PROTEIN_TEMPLATES[target] ?? PROTEIN_TEMPLATES.PCSK9)[0]!;
-  return (RNA_TEMPLATES[target] ?? RNA_TEMPLATES.PCSK9)[idx]!;
+  return realSequences?.[layer]?.sequence ?? "";
 }
 
 function scoreForLayer(layer: MolecularLayer, generation: number): number {
@@ -191,7 +153,8 @@ async function buildEvidenceTrail(
   disease: string,
   pValue: number
 ): Promise<EvidenceClaim[]> {
-  const sequence = (DNA_TEMPLATES[targetName] ?? DNA_TEMPLATES.PCSK9)[0]!;
+  // Use the gene name as a placeholder in claims when real sequence is not yet available
+  const sequence = targetName;
 
   const claimDefs: Array<{ level: EvidenceClaim["level"]; claim: string; gene?: string }> = [
     {

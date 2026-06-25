@@ -28,14 +28,17 @@ export async function fetchUniProtSequence(gene: string): Promise<MolecularData 
     const data = await res.json() as {
       results?: Array<{
         primaryAccession?: string;
-        sequence?: { sequence?: string };
+        sequence?: { value?: string; sequence?: string };
       }>;
     };
     const result = data.results?.[0];
-    if (!result?.sequence?.sequence) return null;
+    if (!result) return null;
+    // UniProt REST API v2 uses sequence.value; older responses use sequence.sequence
+    const seq = result.sequence?.value ?? result.sequence?.sequence;
+    if (!seq) return null;
 
     return {
-      sequence: result.sequence.sequence,
+      sequence: seq,
       source: `uniprot:${result.primaryAccession}`,
       confidence: 0.95,
       structureUrl: result.primaryAccession
@@ -95,8 +98,21 @@ export async function fetchEnsemblCDS(gene: string): Promise<MolecularData | nul
 
 export async function fetchChEMBLBioactivity(gene: string): Promise<MolecularData | null> {
   try {
+    // Step 1: Resolve UniProt accession for this gene (human)
+    const uniprotRes = await fetch(
+      `https://rest.uniprot.org/uniprotkb/search?query=${encodeURIComponent(gene)}+AND+organism_id:9606&format=json&size=1`,
+      { signal: AbortSignal.timeout(10000) }
+    );
+    if (!uniprotRes.ok) return null;
+    const uniprotData = await uniprotRes.json() as {
+      results?: Array<{ primaryAccession?: string }>;
+    };
+    const accession = uniprotData.results?.[0]?.primaryAccession;
+    if (!accession) return null;
+
+    // Step 2: Look up ChEMBL target by UniProt accession (most reliable mapping)
     const targetRes = await fetch(
-      `https://www.ebi.ac.uk/chembl/api/data/target.json?target_type=SINGLE%20PROTEIN&pref_name__icontains=${encodeURIComponent(gene)}&limit=1`,
+      `https://www.ebi.ac.uk/chembl/api/data/target.json?target_components__accession=${encodeURIComponent(accession)}&limit=1`,
       { signal: AbortSignal.timeout(10000) }
     );
     if (!targetRes.ok) return null;
