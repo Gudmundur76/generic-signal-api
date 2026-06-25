@@ -14,6 +14,7 @@ import { publicProcedure, router } from "../_core/trpc";
 import { nanoid } from "nanoid";
 import { verifyClaims, type CitationSource } from "../lib/citationClient";
 import { fetchMolecularData, type MolecularData } from "../lib/molecularData";
+import { fetchPatentLandscape, type PatentLandscape } from "../lib/notusClient";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,6 +67,8 @@ export interface EvolutionRun {
   verification: Record<MolecularLayer, VerificationClaim[]>;
   /** Real sequences fetched from UniProt / Ensembl / ChEMBL at run creation time */
   realSequences: Partial<Record<MolecularLayer, MolecularData>>;
+  /** Patent landscape from Notus API (UNKNOWN when index is empty or service is down) */
+  patentLandscape: PatentLandscape;
 }
 
 // ---------------------------------------------------------------------------
@@ -285,14 +288,17 @@ export const designRouter = router({
       const targetMeta = TARGETS.find((t) => t.name === input.target)!;
       const layers = input.layers as MolecularLayer[];
 
-      // Fetch real molecular sequences in parallel (non-blocking — falls back to templates)
+      // Fetch real molecular sequences + patent landscape in parallel (non-blocking)
       const realSequences: Partial<Record<MolecularLayer, MolecularData>> = {};
-      await Promise.allSettled(
-        layers.map(async (layer) => {
-          const data = await fetchMolecularData(targetMeta.name, layer);
-          if (data) realSequences[layer] = data;
-        })
-      );
+      const [, patentLandscape] = await Promise.all([
+        Promise.allSettled(
+          layers.map(async (layer) => {
+            const data = await fetchMolecularData(targetMeta.name, layer);
+            if (data) realSequences[layer] = data;
+          })
+        ),
+        fetchPatentLandscape(targetMeta.name),
+      ]);
 
       // Build evidence trail via Citation API (non-blocking fallback if service is down)
       const evidenceTrail = await buildEvidenceTrail(
@@ -322,6 +328,7 @@ export const designRouter = router({
         evidenceTrail: evidenceTrailByLayer,
         verification: buildLegacyVerification(input.target),
         realSequences,
+        patentLandscape,
       };
 
       // Seed generation 0
@@ -387,6 +394,9 @@ export const designRouter = router({
           score: Math.round(r.score * 10) / 10,
           meta: layerMeta[r.layer],
         })),
+        ftoStatus: run.patentLandscape.ftoStatus,
+        patentCount: run.patentLandscape.totalBlockingPatents,
+        nearestPatentExpiration: run.patentLandscape.nearestExpiration ?? null,
       };
     }),
 
