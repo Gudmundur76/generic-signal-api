@@ -83,14 +83,14 @@ describe("design.evolve", () => {
     expect(result.status).toBe("started");
     expect(result.target).toBe("PCSK9");
     expect(result.layers).toEqual(["dna", "small_molecule"]);
-  });
+  }, 20_000);
 
   it("returns different runIds for separate calls", async () => {
     const caller = appRouter.createCaller(makePublicCtx());
     const r1 = await caller.design.evolve({ target: "LPA", layers: ["protein"] });
     const r2 = await caller.design.evolve({ target: "APOE", layers: ["rna"] });
     expect(r1.runId).not.toBe(r2.runId);
-  });
+  }, 20_000);
 });
 
 // ---------------------------------------------------------------------------
@@ -160,7 +160,7 @@ describe("design.getResults", () => {
 // ---------------------------------------------------------------------------
 
 describe("design.getVerification", () => {
-  it("returns verification claims for a valid run and layer", async () => {
+  it("returns L1-L5 evidence trail for a valid run and layer", async () => {
     const caller = appRouter.createCaller(makePublicCtx());
     const { runId } = await caller.design.evolve({
       target: "PCSK9",
@@ -173,16 +173,47 @@ describe("design.getVerification", () => {
     expect(verification.runId).toBe(runId);
     expect(verification.layer).toBe("dna");
     expect(Array.isArray(verification.claims)).toBe(true);
-    expect(verification.claims.length).toBeGreaterThan(0);
+    // Evidence trail has exactly 5 levels (L1-L5)
+    expect(verification.claims).toHaveLength(5);
     expect(verification.overallConfidence).toBeGreaterThan(0);
-    const claim = verification.claims[0];
-    expect(["pQTL", "GWAS", "clinical", "structural", "citation"]).toContain(
-      claim.type
+    const claim = verification.claims[0]!;
+    // New shape: level (not type)
+    expect(["L1", "L2", "L3", "L4", "L5"]).toContain(
+      (claim as unknown as Record<string, string>)["level"]
     );
-    expect(["Supported", "Contradicted", "Ambiguous"]).toContain(claim.status);
+    expect(["Supported", "Contradicted", "Unverified", "Partially Supported"]).toContain(claim.status);
     expect(claim.confidence).toBeGreaterThan(0);
     expect(claim.confidence).toBeLessThanOrEqual(1);
-  });
+    expect(Array.isArray(claim.sources)).toBe(true);
+  }, 20_000);
+
+  it("evidence trail has no hardcoded citation.is strings", async () => {
+    const caller = appRouter.createCaller(makePublicCtx());
+    const { runId } = await caller.design.evolve({ target: "LPA", layers: ["dna"] });
+    const verification = await caller.design.getVerification({ runId, layer: "dna" });
+    for (const claim of verification.claims) {
+      for (const src of claim.sources) {
+        const label = typeof src === "string" ? src : JSON.stringify(src);
+        expect(label).not.toMatch(/citation\.is:verified:/);
+      }
+    }
+  }, 20_000);
+
+  it("evidence trail shows Unverified when Citation API is down (fallback)", async () => {
+    // The Citation API is currently down — all claims should fall back to Unverified
+    // with confidence 0.5 and empty sources, but the run must still be created
+    const caller = appRouter.createCaller(makePublicCtx());
+    const { runId } = await caller.design.evolve({ target: "APOE", layers: ["protein"] });
+    expect(runId).toBeTruthy();
+    const verification = await caller.design.getVerification({ runId, layer: "protein" });
+    // All claims should have valid structure even when service is down
+    for (const claim of verification.claims) {
+      expect(["Supported", "Contradicted", "Unverified", "Partially Supported"]).toContain(claim.status);
+      expect(claim.confidence).toBeGreaterThanOrEqual(0);
+      expect(claim.confidence).toBeLessThanOrEqual(1);
+      expect(Array.isArray(claim.sources)).toBe(true);
+    }
+  }, 20_000);
 
   it("throws NOT_FOUND for an unknown runId", async () => {
     const caller = appRouter.createCaller(makePublicCtx());

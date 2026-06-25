@@ -4,10 +4,15 @@
  * Provides tRPC procedures for the autonomous molecular evolution pipeline.
  * Uses an in-memory run store for v1; each run simulates generation-by-generation
  * evolution with scoring across DNA, SMILES, protein, and RNA layers.
+ *
+ * Evidence trail (L1–L5) is backed by the Citation API via citationClient.
+ * When the Citation API is unavailable, claims fall back to "Unverified" status
+ * so the run is never blocked.
  */
 import { z } from "zod";
-import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
+import { publicProcedure, router } from "../_core/trpc";
 import { nanoid } from "nanoid";
+import { verifyClaims, type CitationSource } from "../lib/citationClient";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,9 +29,20 @@ export interface EvolvedSequence {
   generation: number;
 }
 
+/** A single evidence item in the L1–L5 trail */
+export interface EvidenceClaim {
+  /** Evidence level: L1 = sequence, L2 = specificity, L3 = deCODE, L4 = novelty, L5 = FTO */
+  level: "L1" | "L2" | "L3" | "L4" | "L5";
+  claim: string;
+  status: "Supported" | "Contradicted" | "Unverified" | "Partially Supported";
+  confidence: number;
+  sources: CitationSource[];
+}
+
+/** Legacy per-layer verification claim (kept for backward compat with getVerification) */
 export interface VerificationClaim {
   type: "pQTL" | "GWAS" | "clinical" | "structural" | "citation";
-  status: "Supported" | "Contradicted" | "Ambiguous";
+  status: "Supported" | "Contradicted" | "Ambiguous" | "Unverified" | "Partially Supported";
   confidence: number;
   sources: string[];
 }
@@ -43,6 +59,9 @@ export interface EvolutionRun {
   results: EvolvedSequence[];
   coherence: number;
   recommendedLayer: MolecularLayer;
+  /** L1–L5 evidence trail (Citation API backed, per layer) */
+  evidenceTrail: Record<MolecularLayer, EvidenceClaim[]>;
+  /** Legacy per-layer claims (pQTL, GWAS, structural, clinical) */
   verification: Record<MolecularLayer, VerificationClaim[]>;
 }
 
@@ -148,11 +167,74 @@ function scoreForLayer(layer: MolecularLayer, generation: number): number {
     protein: 55,
     rna: 58,
   };
-  // Score improves with generation, caps at 97
   return Math.min(97, base[layer] + generation * 2.3 + Math.random() * 3);
 }
 
-function buildVerification(target: string): Record<MolecularLayer, VerificationClaim[]> {
+// ---------------------------------------------------------------------------
+// L1–L5 evidence trail (Citation API backed)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the L1–L5 evidence trail for a target by calling the Citation API.
+ * Falls back gracefully to "Unverified" when the service is unavailable.
+ * The representative sequence used for L1/L4 is the DNA template at generation 0.
+ */
+async function buildEvidenceTrail(
+  targetName: string,
+  disease: string,
+  pValue: number
+): Promise<EvidenceClaim[]> {
+  const sequence = (DNA_TEMPLATES[targetName] ?? DNA_TEMPLATES.PCSK9)[0]!;
+
+  const claimDefs: Array<{ level: EvidenceClaim["level"]; claim: string; gene?: string }> = [
+    {
+      level: "L1",
+      claim: `Sequence ${sequence} targets ${targetName} for ${disease}`,
+      gene: targetName,
+    },
+    {
+      level: "L2",
+      claim: `${targetName} is specifically associated with ${disease} in population genetics data`,
+      gene: targetName,
+    },
+    {
+      level: "L3",
+      claim: `deCODE genetics associates ${targetName} with ${disease} (p=${pValue.toExponential(1)})`,
+      gene: targetName,
+    },
+    {
+      level: "L4",
+      claim: `Sequence ${sequence} is novel against known databases`,
+      gene: targetName,
+    },
+    {
+      level: "L5",
+      claim: `${targetName} has freedom to operate for therapeutic development`,
+      gene: targetName,
+    },
+  ];
+
+  const citationResults = await verifyClaims(
+    claimDefs.map((d) => ({ claim: d.claim, gene: d.gene }))
+  );
+
+  return claimDefs.map((def, i) => {
+    const result = citationResults[i];
+    return {
+      level: def.level,
+      claim: def.claim,
+      status: result?.status ?? "Unverified",
+      confidence: result?.confidence ?? 0.5,
+      sources: result?.sources ?? [],
+    };
+  });
+}
+
+/**
+ * Build the legacy per-layer VerificationClaim array (pQTL, GWAS, structural, clinical).
+ * These are static and do not call the Citation API.
+ */
+function buildLegacyVerification(target: string): Record<MolecularLayer, VerificationClaim[]> {
   const layers: MolecularLayer[] = ["dna", "small_molecule", "protein", "rna"];
   const result = {} as Record<MolecularLayer, VerificationClaim[]>;
   for (const layer of layers) {
@@ -168,12 +250,6 @@ function buildVerification(target: string): Record<MolecularLayer, VerificationC
         status: "Supported",
         confidence: 0.91,
         sources: [`pubmed:${target === "PCSK9" ? "28959963" : "30595370"}`],
-      },
-      {
-        type: "citation",
-        status: "Supported",
-        confidence: 0.99,
-        sources: [`citation.is:verified:${target.toLowerCase()}_${layer}`],
       },
       {
         type: "structural",
@@ -234,10 +310,23 @@ export const designRouter = router({
         layers: z.array(z.enum(["dna", "small_molecule", "protein", "rna"])).min(1),
       })
     )
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       const runId = `run_${nanoid(12)}`;
       const targetMeta = TARGETS.find((t) => t.name === input.target)!;
       const layers = input.layers as MolecularLayer[];
+
+      // Build evidence trail via Citation API (non-blocking fallback if service is down)
+      const evidenceTrail = await buildEvidenceTrail(
+        targetMeta.name,
+        targetMeta.disease,
+        targetMeta.pValue
+      );
+
+      // Build per-layer evidence trail map (same trail for all layers in v1)
+      const evidenceTrailByLayer = {} as Record<MolecularLayer, EvidenceClaim[]>;
+      for (const layer of (["dna", "small_molecule", "protein", "rna"] as MolecularLayer[])) {
+        evidenceTrailByLayer[layer] = evidenceTrail;
+      }
 
       const run: EvolutionRun = {
         runId,
@@ -251,14 +340,21 @@ export const designRouter = router({
         results: [],
         coherence: 0,
         recommendedLayer: layers[0]!,
-        verification: buildVerification(input.target),
+        evidenceTrail: evidenceTrailByLayer,
+        verification: buildLegacyVerification(input.target),
       };
 
       // Seed generation 0
       advanceRun(run);
       runStore.set(runId, run);
 
-      return { runId, status: 'started' as const, target: input.target, layers, startedAt: run.startedAt };
+      return {
+        runId,
+        status: "started" as const,
+        target: input.target,
+        layers,
+        startedAt: run.startedAt,
+      };
     }),
 
   /** Poll progress — advances the run by one generation each call (simulates async work) */
@@ -268,7 +364,6 @@ export const designRouter = router({
       const run = runStore.get(input.runId);
       if (!run) throw new Error(`Run ${input.runId} not found`);
 
-      // Advance one generation per poll (simulates background work)
       if (!run.converged) advanceRun(run);
 
       return {
@@ -303,7 +398,11 @@ export const designRouter = router({
       };
     }),
 
-  /** Return L1-L5 evidence trail for a specific layer in a run */
+  /**
+   * Return L1–L5 evidence trail for a specific layer in a run.
+   * Each claim has status, confidence, and sources (with real PMIDs when
+   * the Citation API is available).
+   */
   getVerification: publicProcedure
     .input(
       z.object({
@@ -315,16 +414,20 @@ export const designRouter = router({
       const run = runStore.get(input.runId);
       if (!run) throw new Error(`Run ${input.runId} not found`);
 
-      const claims = run.verification[input.layer as MolecularLayer];
+      const evidenceClaims = run.evidenceTrail[input.layer as MolecularLayer];
+      const overallConfidence =
+        Math.round(
+          (evidenceClaims.reduce((s, c) => s + c.confidence, 0) /
+            evidenceClaims.length) *
+            100
+        ) / 100;
+
       return {
         runId: run.runId,
         target: run.target,
         layer: input.layer,
-        claims,
-        overallConfidence:
-          Math.round(
-            (claims.reduce((s, c) => s + c.confidence, 0) / claims.length) * 100
-          ) / 100,
+        claims: evidenceClaims,
+        overallConfidence,
       };
     }),
 });

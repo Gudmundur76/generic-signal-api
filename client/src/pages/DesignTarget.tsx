@@ -47,16 +47,20 @@ const LAYER_COLORS: Record<string, string> = {
   rna: "border-purple-500 bg-purple-50",
 };
 
-const CLAIM_ICONS = {
+const CLAIM_ICONS: Record<string, React.ReactNode> = {
   Supported: <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />,
   Contradicted: <AlertCircle className="w-3.5 h-3.5 text-red-600" />,
   Ambiguous: <HelpCircle className="w-3.5 h-3.5 text-yellow-600" />,
+  Unverified: <HelpCircle className="w-3.5 h-3.5 text-gray-400" />,
+  "Partially Supported": <HelpCircle className="w-3.5 h-3.5 text-blue-500" />,
 };
 
-const CLAIM_COLORS = {
+const CLAIM_COLORS: Record<string, string> = {
   Supported: "text-green-700 bg-green-50 border-green-200",
   Contradicted: "text-red-700 bg-red-50 border-red-200",
   Ambiguous: "text-yellow-700 bg-yellow-50 border-yellow-200",
+  Unverified: "text-gray-600 bg-gray-50 border-gray-200",
+  "Partially Supported": "text-blue-700 bg-blue-50 border-blue-200",
 };
 
 const PATENT_COLORS = {
@@ -101,6 +105,11 @@ function EvidenceTrail({
     clinical: "L3 — Clinical Evidence",
     structural: "L4 — Structural Biology",
     citation: "L5 — Citation Verification",
+    L1: "L1 — Sequence Target",
+    L2: "L2 — Specificity",
+    L3: "L3 — deCODE Association",
+    L4: "L4 — Novelty",
+    L5: "L5 — Freedom to Operate",
   };
 
   return (
@@ -123,17 +132,26 @@ function EvidenceTrail({
           <div className="mt-0.5 flex-shrink-0">{CLAIM_ICONS[claim.status]}</div>
           <div className="flex-1 min-w-0">
             <div className="font-bold mb-0.5">
-              {LEVEL_LABELS[claim.type] ?? claim.type}
+              {LEVEL_LABELS[(claim as unknown as Record<string, string>)["level"] ?? (claim as unknown as Record<string, string>)["type"] ?? ""] ?? (claim as unknown as Record<string, string>)["level"] ?? (claim as unknown as Record<string, string>)["type"]}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono">
                 Confidence: {(claim.confidence * 100).toFixed(0)}%
               </span>
-              {claim.sources.map((src, j) => (
-                <span key={j} className="font-mono bg-white/60 px-1.5 py-0.5 border border-current/20 rounded-none">
-                  {src}
-                </span>
-              ))}
+              {(claim.sources as (string | { name?: string; url?: string; pmid?: string })[]).map((src, j) => {
+                const label = typeof src === "string" ? src : src.pmid ? `PMID:${src.pmid}` : (src.name ?? "");
+                const url = typeof src === "string" ? undefined : src.url;
+                return url ? (
+                  <a key={j} href={url} target="_blank" rel="noopener noreferrer"
+                    className="font-mono bg-white/60 px-1.5 py-0.5 border border-current/20 rounded-none hover:underline">
+                    {label}
+                  </a>
+                ) : (
+                  <span key={j} className="font-mono bg-white/60 px-1.5 py-0.5 border border-current/20 rounded-none">
+                    {label}
+                  </span>
+                );
+              })}
             </div>
           </div>
         </div>
