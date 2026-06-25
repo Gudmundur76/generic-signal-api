@@ -63,3 +63,13 @@
 - [x] RoyaltyDashboard.tsx: record royalty form (admin only)
 - [x] server/partners.test.ts: 15 vitest tests for CLF integration + selectFirstCandidate
 - [x] All 42 tests passing (partners + alerts + design + auth)
+
+## Deployment Fix & Next Steps
+
+- [x] Inline cognitive-loop-framework into server/lib/clf/ to fix production ERR_MODULE_NOT_FOUND
+- [x] Owner notification (notifyOwner) on partner signup with full candidate details
+- [x] Duplicate-email guard: toast with "Go to dashboard" action button
+- [x] Admin listDeliveries query (protectedProcedure)
+- [x] Deliveries tab: live table with gene, area, FTO, scores, partner ID, sent date
+- [x] Inline status dropdown per row — updates status and increments positiveValidations counter
+- [x] Status filter dropdown (all / sent / opened / validated_positive / etc.)

@@ -31,11 +31,27 @@ const STATUS_COLORS: Record<string, string> = {
 export default function RoyaltyDashboard() {
   const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<"overview" | "partners" | "deliveries" | "royalties">("overview");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   // Data queries
   const stats = trpc.partners.stats.useQuery(undefined, { enabled: !!user });
   const partners = trpc.partners.list.useQuery({ limit: 200 }, { enabled: !!user && activeTab === "partners" });
+  const deliveriesQuery = trpc.partners.listDeliveries.useQuery(
+    { limit: 200 },
+    { enabled: !!user && activeTab === "deliveries" }
+  );
   const royaltySummary = trpc.partners.royaltySummary.useQuery(undefined, { enabled: !!user && activeTab === "royalties" });
+
+  const updateStatus = trpc.partners.updateStatus.useMutation({
+    onSuccess() {
+      toast.success("Status updated");
+      deliveriesQuery.refetch();
+      stats.refetch();
+      setUpdatingId(null);
+    },
+    onError(err) { toast.error(err.message); setUpdatingId(null); },
+  });
 
   // Record royalty form state
   const [royaltyForm, setRoyaltyForm] = useState({
@@ -227,19 +243,98 @@ export default function RoyaltyDashboard() {
         {/* Deliveries */}
         {activeTab === "deliveries" && (
           <div className="space-y-4">
-            <h2 className="text-xl font-bold">Candidate Deliveries</h2>
-            <p className="text-zinc-500 text-sm">
-              Deliveries are recorded automatically when the pipeline dispatches a candidate.
-              Update status as partners respond.
-            </p>
-            <Card className="bg-zinc-900 border-zinc-800">
-              <CardContent className="pt-6">
-                <p className="text-zinc-500 text-sm text-center py-8">
-                  Delivery records appear here as candidates are dispatched to partners.
-                  Use the admin API or the cognitive-loop pipeline to record deliveries.
-                </p>
-              </CardContent>
-            </Card>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <h2 className="text-xl font-bold">Candidate Deliveries ({deliveriesQuery.data?.length ?? 0})</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-500 text-sm">Filter:</span>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="bg-zinc-800 border border-zinc-700 text-white text-sm rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-500"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="sent">Sent</option>
+                  <option value="opened">Opened</option>
+                  <option value="validated_positive">Validated positive</option>
+                  <option value="validated_negative">Validated negative</option>
+                  <option value="no_response">No response</option>
+                  <option value="partnership_initiated">Partnership initiated</option>
+                  <option value="bounced">Bounced</option>
+                </select>
+              </div>
+            </div>
+
+            {deliveriesQuery.isLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-800 text-zinc-500">
+                      <th className="text-left py-3 pr-3">ID</th>
+                      <th className="text-left py-3 pr-3">Gene</th>
+                      <th className="text-left py-3 pr-3">Area</th>
+                      <th className="text-left py-3 pr-3">Partner</th>
+                      <th className="text-right py-3 pr-3">Novelty</th>
+                      <th className="text-right py-3 pr-3">Composite</th>
+                      <th className="text-left py-3 pr-3">FTO</th>
+                      <th className="text-left py-3 pr-3">Sent</th>
+                      <th className="text-left py-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(deliveriesQuery.data ?? [])
+                      .filter((d) => statusFilter === "all" || d.status === statusFilter)
+                      .map((d) => (
+                        <tr key={d.id} className="border-b border-zinc-900 hover:bg-zinc-900/50 transition-colors">
+                          <td className="py-3 pr-3 font-mono text-zinc-500 text-xs">#{d.id}</td>
+                          <td className="py-3 pr-3 font-semibold text-white">{d.gene}</td>
+                          <td className="py-3 pr-3 text-zinc-400 text-xs">{d.therapeuticArea.replace(/_/g, " ")}</td>
+                          <td className="py-3 pr-3 font-mono text-zinc-400 text-xs">#{d.partnerId}</td>
+                          <td className="py-3 pr-3 text-right font-mono text-zinc-300">{d.noveltyScore}</td>
+                          <td className="py-3 pr-3 text-right font-mono text-zinc-300">{d.compositeScore}</td>
+                          <td className="py-3 pr-3">
+                            <span className={`text-xs font-medium ${
+                              d.fto === "CLEAR" ? "text-green-400" :
+                              d.fto === "RISK" ? "text-yellow-400" : "text-red-400"
+                            }`}>{d.fto}</span>
+                          </td>
+                          <td className="py-3 pr-3 text-zinc-500 text-xs whitespace-nowrap">
+                            {fmtDate(d.sentAt instanceof Date ? d.sentAt.toISOString() : String(d.sentAt))}
+                          </td>
+                          <td className="py-3">
+                            <select
+                              value={d.status}
+                              disabled={updatingId === d.id}
+                              onChange={(e) => {
+                                setUpdatingId(d.id);
+                                updateStatus.mutate({ deliveryId: d.id, status: e.target.value as typeof d.status });
+                              }}
+                              className={`text-xs rounded px-2 py-1 border focus:outline-none focus:ring-1 focus:ring-red-500 cursor-pointer ${
+                                STATUS_COLORS[d.status] ?? "bg-zinc-700 text-zinc-300"
+                              } border-transparent`}
+                            >
+                              {["sent","opened","validated_positive","validated_negative","no_response","partnership_initiated","bounced"].map((s) => (
+                                <option key={s} value={s} className="bg-zinc-900 text-white">{s.replace(/_/g, " ")}</option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      ))
+                    }
+                    {!(deliveriesQuery.data?.length) && (
+                      <tr>
+                        <td colSpan={9} className="py-12 text-center text-zinc-600">
+                          No deliveries yet. Register a partner to trigger the first candidate delivery.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

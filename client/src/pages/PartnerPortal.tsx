@@ -64,7 +64,17 @@ export default function PartnerPortal() {
         setFirstArea(data.firstCandidateArea ?? null);
         setStep("success");
       } else {
-        toast.error(data.message);
+        // Duplicate email — guide the partner back to the dashboard
+        toast.error(
+          "This email is already registered. Check your inbox for your candidate package, or visit the dashboard to track your deliveries.",
+          {
+            duration: 8000,
+            action: {
+              label: "Go to dashboard",
+              onClick: () => window.location.href = "/dashboard",
+            },
+          }
+        );
       }
     },
     onError(err) {

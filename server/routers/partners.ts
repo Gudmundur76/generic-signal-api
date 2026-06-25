@@ -20,10 +20,11 @@ import { eq, desc, sql } from "drizzle-orm";
 import {
   getTargetsByArea,
   getTopTargets,
-} from "cognitive-loop-framework/targets/decodeTargetList";
-import type { TherapeuticArea as CLFTherapeuticArea } from "cognitive-loop-framework/targets/decodeTargetList";
-import { defaultGate } from "cognitive-loop-framework/distribution/qualityGate";
-import type { CandidatePackage } from "cognitive-loop-framework/distribution/types";
+  type TherapeuticArea as CLFTherapeuticArea,
+} from "../lib/clf/decodeTargetList";
+import { defaultGate } from "../lib/clf/qualityGate";
+import type { CandidatePackage } from "../lib/clf/types";
+import { notifyOwner } from "../_core/notification";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -297,6 +298,36 @@ export const partnersRouter = router({
           console.log(
             `[partners.register] First candidate delivered: ${pkg.gene} (${pkg.area}) → partner #${partnerId}`,
           );
+
+          // Notify owner of new partner + first candidate delivery
+          notifyOwner({
+            title: `New partner registered: ${input.name}`,
+            content: [
+              `**Partner:** ${input.name} (${input.institution})`,
+              `**Email:** ${input.email}`,
+              `**Tier:** ${input.tier}`,
+              `**Areas:** ${input.therapeuticAreas.join(", ")}`,
+              `**First candidate delivered:** ${pkg.gene} (${pkg.area})`,
+              `**Novelty score:** ${pkg.noveltyScore}/100`,
+              `**Composite score:** ${pkg.compositeScore}/100`,
+              `**FTO:** ${pkg.fto}`,
+              `**deCODE p-value:** ${pkg.deCODEEvidence.pValue.toExponential(2)}`,
+              `**Recommended assay:** ${pkg.recommendedAssay}`,
+              `**Validation threshold:** ${pkg.validationThreshold}`,
+            ].join("\n"),
+          }).catch((e) => console.warn("[partners.register] Owner notification failed:", e));
+        } else {
+          // Notify owner even if no candidate was selected
+          notifyOwner({
+            title: `New partner registered: ${input.name}`,
+            content: [
+              `**Partner:** ${input.name} (${input.institution})`,
+              `**Email:** ${input.email}`,
+              `**Tier:** ${input.tier}`,
+              `**Areas:** ${input.therapeuticAreas.join(", ")}`,
+              `**Note:** No candidate matched the quality gate — manual review required.`,
+            ].join("\n"),
+          }).catch((e) => console.warn("[partners.register] Owner notification failed:", e));
         }
       } catch (err) {
         // Non-fatal: partner is registered even if first delivery fails
@@ -498,6 +529,32 @@ export const partnersRouter = router({
       eventCount: Number(r.eventCount),
     }));
   }),
+
+  /** Admin: list all deliveries with optional filters */
+  listDeliveries: protectedProcedure
+    .input(
+      z.object({
+        status: z.enum([
+          "sent", "opened", "validated_positive", "validated_negative",
+          "no_response", "partnership_initiated", "bounced",
+        ]).optional(),
+        limit: z.number().int().min(1).max(500).default(200),
+        offset: z.number().int().min(0).default(0),
+      })
+    )
+    .query(async ({ input }) => {
+      const d = await requireDb();
+      const rows = await d
+        .select()
+        .from(deliveries)
+        .orderBy(desc(deliveries.sentAt))
+        .limit(input.limit)
+        .offset(input.offset);
+
+      return input.status
+        ? rows.filter((r) => r.status === input.status)
+        : rows;
+    }),
 
   /** Public: list deliveries for a partner by email */
   myDeliveries: publicProcedure

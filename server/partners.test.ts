@@ -8,9 +8,9 @@ import { describe, it, expect } from "vitest";
 import {
   getTargetsByArea,
   getTopTargets,
-} from "cognitive-loop-framework/targets/decodeTargetList";
-import { defaultGate } from "cognitive-loop-framework/distribution/qualityGate";
-import type { CandidatePackage } from "cognitive-loop-framework/distribution/types";
+} from "./lib/clf/decodeTargetList";
+import { defaultGate } from "./lib/clf/qualityGate";
+import type { CandidatePackage } from "./lib/clf/types";
 
 // ── Helpers duplicated here for pure unit testing ─────────────────────────────
 // (mirrors the logic in server/routers/partners.ts without importing the full router)
