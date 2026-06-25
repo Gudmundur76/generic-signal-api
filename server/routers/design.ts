@@ -13,6 +13,7 @@ import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
 import { nanoid } from "nanoid";
 import { verifyClaims, type CitationSource } from "../lib/citationClient";
+import { fetchMolecularData, type MolecularData } from "../lib/molecularData";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -63,6 +64,8 @@ export interface EvolutionRun {
   evidenceTrail: Record<MolecularLayer, EvidenceClaim[]>;
   /** Legacy per-layer claims (pQTL, GWAS, structural, clinical) */
   verification: Record<MolecularLayer, VerificationClaim[]>;
+  /** Real sequences fetched from UniProt / Ensembl / ChEMBL at run creation time */
+  realSequences: Partial<Record<MolecularLayer, MolecularData>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -151,8 +154,12 @@ const RNA_TEMPLATES: Record<string, string[]> = {
 function pickSequence(
   target: string,
   layer: MolecularLayer,
-  generation: number
+  generation: number,
+  realSequences?: Partial<Record<MolecularLayer, MolecularData>>
 ): string {
+  // Prefer real sequence from public APIs; fall back to hardcoded templates
+  const real = realSequences?.[layer];
+  if (real?.sequence) return real.sequence;
   const idx = generation % 3;
   if (layer === "dna") return (DNA_TEMPLATES[target] ?? DNA_TEMPLATES.PCSK9)[idx]!;
   if (layer === "small_molecule") return (SMILES_TEMPLATES[target] ?? SMILES_TEMPLATES.PCSK9)[idx]!;
@@ -280,7 +287,7 @@ function advanceRun(run: EvolutionRun): void {
 
   const newResults: EvolvedSequence[] = run.layers.map((layer) => ({
     layer,
-    sequence: pickSequence(run.target, layer, run.generation),
+    sequence: pickSequence(run.target, layer, run.generation, run.realSequences),
     score: scoreForLayer(layer, run.generation),
     novelty: run.generation >= 3,
     patent: run.generation >= 5 ? "CLEAR" : "RISK",
@@ -315,6 +322,15 @@ export const designRouter = router({
       const targetMeta = TARGETS.find((t) => t.name === input.target)!;
       const layers = input.layers as MolecularLayer[];
 
+      // Fetch real molecular sequences in parallel (non-blocking — falls back to templates)
+      const realSequences: Partial<Record<MolecularLayer, MolecularData>> = {};
+      await Promise.allSettled(
+        layers.map(async (layer) => {
+          const data = await fetchMolecularData(targetMeta.name, layer);
+          if (data) realSequences[layer] = data;
+        })
+      );
+
       // Build evidence trail via Citation API (non-blocking fallback if service is down)
       const evidenceTrail = await buildEvidenceTrail(
         targetMeta.name,
@@ -342,6 +358,7 @@ export const designRouter = router({
         recommendedLayer: layers[0]!,
         evidenceTrail: evidenceTrailByLayer,
         verification: buildLegacyVerification(input.target),
+        realSequences,
       };
 
       // Seed generation 0
@@ -384,6 +401,17 @@ export const designRouter = router({
       const run = runStore.get(input.runId);
       if (!run) throw new Error(`Run ${input.runId} not found`);
 
+      // Attach real-data metadata per layer so the UI can show source + AlphaFold link
+      const layerMeta: Record<string, { source: string; confidence: number; structureUrl?: string; bioactivity?: { ic50?: number; pIC50?: number } }> = {};
+      for (const [layer, data] of Object.entries(run.realSequences)) {
+        layerMeta[layer] = {
+          source: data.source,
+          confidence: data.confidence,
+          structureUrl: data.structureUrl,
+          bioactivity: data.bioactivity,
+        };
+      }
+
       return {
         runId: run.runId,
         target: run.target,
@@ -394,6 +422,7 @@ export const designRouter = router({
         layers: run.results.map((r) => ({
           ...r,
           score: Math.round(r.score * 10) / 10,
+          meta: layerMeta[r.layer],
         })),
       };
     }),
