@@ -88,6 +88,8 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    console.log(`[env] NOTUS_API_KEY: ${process.env.NOTUS_API_KEY ? "present" : "MISSING"}`);
+    console.log(`[env] CITATION_API_KEY: ${process.env.CITATION_API_KEY ? "present" : "MISSING"}`);
   });
 }
 
