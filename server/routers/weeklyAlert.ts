@@ -1,8 +1,8 @@
 import type { Request, Response } from "express";
 import { sdk } from "../_core/sdk";
-import { getActiveSubscribers } from "../db";
+import { getActiveSubscribers, getRecentAlerts } from "../db";
 import { notifyOwner } from "../_core/notification";
-import { SAMPLE_ALERTS, formatWeeklyAlert } from "./alerts";
+import { formatWeeklyAlert } from "./alerts";
 
 /**
  * Heartbeat callback handler for the weekly patent alert cron.
@@ -19,18 +19,22 @@ export async function weeklyAlertHandler(req: Request, res: Response): Promise<v
       return;
     }
 
-    const subscribers = await getActiveSubscribers();
-    const formattedEmail = formatWeeklyAlert(SAMPLE_ALERTS);
+    const [subscribers, alerts] = await Promise.all([
+      getActiveSubscribers(),
+      getRecentAlerts(),
+    ]);
+    const formattedEmail = formatWeeklyAlert(alerts);
 
     // Notify project owner with the full weekly digest
     await notifyOwner({
-      title: `Generic Signal Weekly Alert — ${subscribers.length} subscriber(s)`,
+      title: `Generic Signal Weekly Alert — ${subscribers.length} subscriber(s), ${alerts.length} alert(s)`,
       content: formattedEmail,
     });
 
     res.json({
       ok: true,
       subscriberCount: subscribers.length,
+      alertCount: alerts.length,
       sentAt: new Date().toISOString(),
     });
   } catch (err) {

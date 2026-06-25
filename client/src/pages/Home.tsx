@@ -183,10 +183,10 @@ function AlertCard({ alert }: {
     patentNumber: string;
     title: string;
     assignee: string;
-    expiryDate: string;
+    expiryDate: string | null;
     distressScore: number;
-    niche: string;
-    patentUrl: string;
+    niche: string | null;
+    patentUrl: string | null;
   };
 }) {
   return (
@@ -196,7 +196,7 @@ function AlertCard({ alert }: {
           {alert.distressScore}/100
         </span>
         <span className="text-[10px] tracking-[0.12em] uppercase text-[#888]">
-          {alert.niche.replace(/_/g, " ")}
+          {(alert.niche ?? "").replace(/_/g, " ")}
         </span>
       </div>
       <div className="px-6 py-5">
@@ -208,7 +208,7 @@ function AlertCard({ alert }: {
             <dt className="text-[#888] tracking-[0.08em] uppercase">Patent</dt>
             <dd>
               <a
-                href={alert.patentUrl}
+                href={alert.patentUrl ?? "#"}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-mono font-bold text-black hover:text-[#E30613] underline"
@@ -223,7 +223,7 @@ function AlertCard({ alert }: {
           </div>
           <div className="flex justify-between text-[12px]">
             <dt className="text-[#888] tracking-[0.08em] uppercase">Expires</dt>
-            <dd className="font-bold text-[#E30613]">{alert.expiryDate}</dd>
+            <dd className="font-bold text-[#E30613]">{alert.expiryDate ?? "TBD"}</dd>
           </div>
         </dl>
       </div>

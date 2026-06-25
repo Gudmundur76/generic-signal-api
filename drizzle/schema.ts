@@ -105,3 +105,21 @@ export const royaltyEvents = mysqlTable("royaltyEvents", {
 });
 export type RoyaltyEvent = typeof royaltyEvents.$inferSelect;
 export type InsertRoyaltyEvent = typeof royaltyEvents.$inferInsert;
+
+// ── Patent Alerts ─────────────────────────────────────────────────────────────
+export const patentAlerts = mysqlTable("patentAlerts", {
+  id: int("id").autoincrement().primaryKey(),
+  patentNumber: varchar("patentNumber", { length: 32 }).notNull().unique(),
+  title: varchar("title", { length: 512 }).notNull(),
+  assignee: varchar("assignee", { length: 255 }).notNull(),
+  status: mysqlEnum("status", ["EXPIRING", "ABANDONED", "RE_EXAM_NARROWED"]).notNull(),
+  expiryDate: varchar("expiryDate", { length: 16 }),
+  distressScore: int("distressScore").notNull().default(0),
+  niche: varchar("niche", { length: 64 }),
+  claims: text("claims"),            // JSON array stored as text
+  verificationStatus: varchar("verificationStatus", { length: 32 }).default("Pending").notNull(),
+  patentUrl: varchar("patentUrl", { length: 512 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PatentAlert = typeof patentAlerts.$inferSelect;
+export type InsertPatentAlert = typeof patentAlerts.$inferInsert;

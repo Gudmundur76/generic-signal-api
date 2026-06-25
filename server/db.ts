@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, gte, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, subscribers, InsertSubscriber } from "../drizzle/schema";
+import { InsertUser, users, subscribers, InsertSubscriber, patentAlerts, InsertPatentAlert, PatentAlert } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -110,9 +110,50 @@ export async function addSubscriber(email: string): Promise<{ created: boolean }
 export async function getActiveSubscribers(): Promise<{ id: number; email: string }[]> {
   const db = await getDb();
   if (!db) return [];
-
   return db
     .select({ id: subscribers.id, email: subscribers.email })
     .from(subscribers)
     .where(eq(subscribers.status, "active"));
+}
+
+// ── Patent Alert helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Returns up to 10 patent alerts created in the last 7 days, newest first.
+ * Returns an empty array if the table is empty — no fallback to sample data.
+ */
+export async function getRecentAlerts(): Promise<PatentAlert[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  return db
+    .select()
+    .from(patentAlerts)
+    .where(gte(patentAlerts.createdAt, since))
+    .orderBy(desc(patentAlerts.createdAt))
+    .limit(10);
+}
+
+/**
+ * Upserts a patent alert by patentNumber (insert or update on duplicate key).
+ */
+export async function upsertPatentAlert(alert: InsertPatentAlert): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .insert(patentAlerts)
+    .values(alert)
+    .onDuplicateKeyUpdate({
+      set: {
+        title: alert.title,
+        assignee: alert.assignee,
+        status: alert.status,
+        expiryDate: alert.expiryDate,
+        distressScore: alert.distressScore,
+        niche: alert.niche,
+        claims: alert.claims,
+        verificationStatus: alert.verificationStatus,
+        patentUrl: alert.patentUrl,
+      },
+    });
 }
