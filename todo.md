@@ -85,3 +85,16 @@
 - [x] drizzle/schema.ts — removed leftover "// TODO: Add your tables here" template comment
 - [x] server/routers.ts — removed leftover "// TODO: add feature routers here" template block
 - [x] All 74 tests passing (9 test files, 2 skipped)
+
+## TARGETS Expansion & Patent Seed — Sprint 6
+
+- [x] Add ANGPTL3, CETP, HMGCR, APOC3, TTR to TARGETS array in design.ts (8 total)
+- [x] Add TARGET_EVIDENCE entries for all 5 new genes with real PMIDs, PDB IDs, NCT IDs
+- [x] Update evolve input z.enum to accept all 8 targets
+- [x] Create server/lib/seedPatents.ts with 5 real patent cliff records
+- [x] Run seed and verify 5 rows in patentAlerts table
+- [x] Test: TARGETS.length === 8
+- [x] Test: TARGET_EVIDENCE has all 8 entries with non-empty PMIDs, PDBs, NCTs
+- [x] Test: patentAlerts table has 5 rows after seed
+- [x] Test: getRecentAlerts() returns 5 alerts
+- [x] 0 TypeScript errors

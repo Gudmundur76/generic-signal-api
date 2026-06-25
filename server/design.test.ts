@@ -37,11 +37,13 @@ function makePublicCtx(): TrpcContext {
 // ---------------------------------------------------------------------------
 
 describe("design.getTargets", () => {
-  it("returns 3 hardcoded targets", async () => {
+  it("returns 8 targets (expanded from 3 in Sprint 6)", async () => {
     const caller = appRouter.createCaller(makePublicCtx());
     const targets = await caller.design.getTargets();
-    expect(targets).toHaveLength(3);
-    expect(targets.map((t) => t.name)).toEqual(["PCSK9", "LPA", "APOE"]);
+    expect(targets).toHaveLength(8);
+    expect(targets.map((t) => t.name)).toEqual([
+      "PCSK9", "LPA", "APOE", "ANGPTL3", "CETP", "HMGCR", "APOC3", "TTR",
+    ]);
   });
 
   it("each target has required fields", async () => {

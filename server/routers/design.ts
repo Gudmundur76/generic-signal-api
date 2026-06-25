@@ -112,6 +112,66 @@ const TARGETS = [
     approvedDrugs: [],
     layers: ["dna", "protein", "rna"] as MolecularLayer[],
   },
+  {
+    name: "ANGPTL3",
+    gene: "ENSG00000132855",
+    protein: "Q9Y5C1",
+    disease: "dyslipidemia",
+    deCODEAssociations: 6,
+    pValue: 3.1e-31,
+    description:
+      "Angiopoietin-like protein 3 — loss-of-function variants cause familial combined hypolipidaemia. deCODE pQTLs show large effect on triglycerides and LDL-C. Evinacumab (anti-ANGPTL3) approved 2021.",
+    approvedDrugs: ["Evinacumab"],
+    layers: ["small_molecule", "protein", "rna"] as MolecularLayer[],
+  },
+  {
+    name: "CETP",
+    gene: "ENSG00000087237",
+    protein: "P11597",
+    disease: "coronary artery disease",
+    deCODEAssociations: 4,
+    pValue: 1.4e-15,
+    description:
+      "Cholesteryl ester transfer protein — inhibition raises HDL-C. deCODE variants associate with HDL/LDL ratio and CAD risk. Multiple CETP inhibitor programmes in late-stage development.",
+    approvedDrugs: [],
+    layers: ["small_molecule", "protein"] as MolecularLayer[],
+  },
+  {
+    name: "HMGCR",
+    gene: "ENSG00000113161",
+    protein: "P04035",
+    disease: "cardiovascular disease",
+    deCODEAssociations: 7,
+    pValue: 2.8e-24,
+    description:
+      "HMG-CoA reductase — the canonical statin target. deCODE loss-of-function variants phenocopy statin treatment, validating LDL-C lowering as causal for CVD protection.",
+    approvedDrugs: ["Atorvastatin", "Rosuvastatin", "Simvastatin"],
+    layers: ["small_molecule", "dna"] as MolecularLayer[],
+  },
+  {
+    name: "APOC3",
+    gene: "ENSG00000110245",
+    protein: "P02656",
+    disease: "hypertriglyceridemia",
+    deCODEAssociations: 9,
+    pValue: 7.5e-42,
+    description:
+      "Apolipoprotein C-III — inhibits lipoprotein lipase and hepatic uptake of TG-rich lipoproteins. deCODE loss-of-function carriers have markedly reduced TG and CVD risk. Volanesorsen (siRNA) approved for FCS.",
+    approvedDrugs: ["Volanesorsen"],
+    layers: ["rna", "small_molecule", "protein"] as MolecularLayer[],
+  },
+  {
+    name: "TTR",
+    gene: "ENSG00000118271",
+    protein: "P02766",
+    disease: "hereditary ATTR amyloidosis",
+    deCODEAssociations: 3,
+    pValue: 1.1e-18,
+    description:
+      "Transthyretin — misfolding and aggregation causes cardiac and peripheral amyloidosis. deCODE identified pathogenic Val122Ile and Val30Met variants. Patisiran (siRNA) and tafamidis (stabiliser) approved.",
+    approvedDrugs: ["Patisiran", "Vutrisiran", "Tafamidis"],
+    layers: ["rna", "small_molecule", "protein"] as MolecularLayer[],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -238,6 +298,46 @@ const TARGET_EVIDENCE: Record<string, {
     clinicalTrialId: "NCT03634007",     // ADCS APOE4 trial
     clinicalConfidence: 0.72,
   },
+  ANGPTL3: {
+    // Stitziel 2017 (NEJM), Dewey 2017 (NEJM), Musunuru 2010 (NEJM)
+    pqtlPMIDs: ["28825786", "28318688", "26833199"],
+    gwasPMID: "28825786",
+    pdbId: "6UZM",                      // ANGPTL3 fibrinogen-like domain
+    clinicalTrialId: "NCT03302451",     // ELIPSE HoFH trial (evinacumab)
+    clinicalConfidence: 0.88,
+  },
+  CETP: {
+    // Boekholdt 2012 (JAMA), Voight 2012 (Lancet), Barter 2007 (NEJM)
+    pqtlPMIDs: ["23882279", "22607825", "16881795"],
+    gwasPMID: "23882279",
+    pdbId: "2OBD",                      // CETP crystal structure
+    clinicalTrialId: "NCT02545592",     // REVEAL trial (anacetrapib)
+    clinicalConfidence: 0.81,
+  },
+  HMGCR: {
+    // Ference 2012 (JACC), Kathiresan 2008 (Nat Genet), Istvan 2001 (Science)
+    pqtlPMIDs: ["17406382", "15087575", "10513024"],
+    gwasPMID: "17406382",
+    pdbId: "1HW8",                      // HMGCR catalytic domain with atorvastatin
+    clinicalTrialId: "NCT00761698",     // JUPITER trial (rosuvastatin)
+    clinicalConfidence: 0.97,
+  },
+  APOC3: {
+    // Jorgensen 2014 (NEJM), Crosby 2014 (NEJM), Pollin 2008 (Science)
+    pqtlPMIDs: ["24941082", "23731811", "21441125"],
+    gwasPMID: "24941082",
+    pdbId: "1AI0",                      // APOC3 NMR structure
+    clinicalTrialId: "NCT03385239",     // APPROACH trial (volanesorsen)
+    clinicalConfidence: 0.85,
+  },
+  TTR: {
+    // Adams 2018 (NEJM), Coelho 2013 (NEJM), Berk 2013 (Lancet)
+    pqtlPMIDs: ["28657829", "28538115", "25475028"],
+    gwasPMID: "28657829",
+    pdbId: "1F41",                      // TTR tetramer with T4 ligand
+    clinicalTrialId: "NCT04136119",     // HELIOS-A trial (vutrisiran)
+    clinicalConfidence: 0.93,
+  },
 };
 
 /**
@@ -280,6 +380,12 @@ function buildLegacyVerification(target: string): Record<MolecularLayer, Verific
 }
 
 // ---------------------------------------------------------------------------
+// Test exports (used by targets.test.ts only)
+// ---------------------------------------------------------------------------
+
+export { TARGETS as TARGETS_FOR_TEST, TARGET_EVIDENCE as TARGET_EVIDENCE_FOR_TEST };
+
+// ---------------------------------------------------------------------------
 // In-memory run store
 // ---------------------------------------------------------------------------
 
@@ -320,7 +426,7 @@ export const designRouter = router({
   evolve: publicProcedure
     .input(
       z.object({
-        target: z.enum(["PCSK9", "LPA", "APOE"]),
+        target: z.enum(["PCSK9", "LPA", "APOE", "ANGPTL3", "CETP", "HMGCR", "APOC3", "TTR"]),
         layers: z.array(z.enum(["dna", "small_molecule", "protein", "rna"])).min(1),
       })
     )
