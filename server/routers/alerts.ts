@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
-import { addSubscriber, getActiveSubscribers, getRecentAlerts } from "../db";
+import { addSubscriber, getActiveSubscribers, getRecentAlerts, upsertPatentAlert } from "../db";
 import { notifyOwner } from "../_core/notification";
 import type { PatentAlert } from "../../drizzle/schema";
 
@@ -62,6 +62,49 @@ export const alertsRouter = router({
       count: alerts.length,
     };
   }),
+
+  // POST /api/trpc/alerts.ingest  (admin-only)
+  ingest: adminProcedure
+    .input(
+      z.object({
+        patentNumber: z.string(),
+        title: z.string(),
+        assignee: z.string(),
+        expiryDate: z.string().nullable(),
+        niche: z.string().nullable(),
+        molecularTarget: z.string().nullable(),
+        status: z.enum(["expiring", "abandoned", "reexamined"]),
+        confidence: z.number().min(0).max(1),
+        patentUrl: z.string().nullable(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      // Map lowercase input status to DB enum
+      const statusMap = {
+        expiring: "EXPIRING",
+        abandoned: "ABANDONED",
+        reexamined: "RE_EXAM_NARROWED",
+      } as const;
+      const dbStatus = statusMap[input.status];
+      // Map confidence (0-1) to distressScore (0-100)
+      const distressScore = Math.round(input.confidence * 100);
+      // Store molecularTarget in claims JSON field
+      const claims = input.molecularTarget
+        ? JSON.stringify([input.molecularTarget])
+        : null;
+      await upsertPatentAlert({
+        patentNumber: input.patentNumber,
+        title: input.title,
+        assignee: input.assignee,
+        status: dbStatus,
+        expiryDate: input.expiryDate ?? undefined,
+        distressScore,
+        niche: input.niche ?? undefined,
+        claims,
+        patentUrl: input.patentUrl ?? undefined,
+      });
+      return { success: true, patentNumber: input.patentNumber };
+    }),
 
   // POST /api/trpc/alerts.trigger  (admin-only)
   trigger: adminProcedure.mutation(async () => {

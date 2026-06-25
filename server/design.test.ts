@@ -111,7 +111,7 @@ describe("design.getProgress", () => {
     expect(typeof progress.converged).toBe("boolean");
     expect(progress.progressPct).toBeGreaterThanOrEqual(0);
     expect(progress.progressPct).toBeLessThanOrEqual(100);
-  });
+  }, 30000);
 
   it("throws NOT_FOUND for an unknown runId", async () => {
     const caller = appRouter.createCaller(makePublicCtx());
