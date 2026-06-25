@@ -53,11 +53,15 @@ export default function PartnerPortal() {
   const [tier, setTier] = useState<"explorer" | "developer" | "accelerator">("explorer");
   const [agreed, setAgreed] = useState(false);
   const [partnerId, setPartnerId] = useState<number | null>(null);
+  const [firstGene, setFirstGene] = useState<string | null>(null);
+  const [firstArea, setFirstArea] = useState<string | null>(null);
 
   const register = trpc.partners.register.useMutation({
     onSuccess(data) {
       if (data.success) {
         setPartnerId(data.partnerId);
+        setFirstGene(data.firstCandidateGene ?? null);
+        setFirstArea(data.firstCandidateArea ?? null);
         setStep("success");
       } else {
         toast.error(data.message);
@@ -105,8 +109,14 @@ export default function PartnerPortal() {
           </div>
           <h1 className="text-3xl font-bold">You're in the network.</h1>
           <p className="text-zinc-400 text-lg">
-            Your first drug candidate will arrive within 24 hours. No cost. No commitment.
-            Royalties only if a drug reaches commercial sales.
+            {firstGene
+              ? <>
+                  Your first drug candidate (<strong className="text-white">{firstGene}</strong>,{" "}
+                  {firstArea?.replace(/_/g, " ")}) has been queued for delivery. No cost. No commitment.
+                </>
+              : <>Your first drug candidate will arrive within 24 hours. No cost. No commitment.</>
+            }
+            {" "}Royalties only if a drug reaches commercial sales.
           </p>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-left space-y-2">
             <p className="text-sm text-zinc-500">Partner ID</p>

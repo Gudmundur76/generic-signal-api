@@ -10,6 +10,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { weeklyAlertHandler } from "../routers/weeklyAlert";
+import { handlePatentScan, handleWeeklyReport } from "../routers/scheduledJobs";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -58,8 +59,10 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
 
-  // Scheduled heartbeat callback — weekly patent alert
+  // Scheduled heartbeat callbacks
   app.post("/api/scheduled/weeklyAlert", weeklyAlertHandler);
+  app.post("/api/scheduled/patent-scan", handlePatentScan);
+  app.post("/api/scheduled/weekly-report", handleWeeklyReport);
 
   // tRPC API
   app.use(

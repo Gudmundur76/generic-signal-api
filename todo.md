@@ -50,3 +50,16 @@
 - [x] Add "RUN MOLECULAR DESIGN →" second CTA button in hero
 - [x] Add Generic Signal wordmark + back-link to /design page nav
 - [x] Checkpoint saved
+## Partner Portal & Royalty Dashboard — Sprint 4
+- [x] Fix cognitive-loop-framework package.json exports (add import/default conditions)
+- [x] Fix insertId extraction from drizzle mysql2 insert result (result[0].insertId)
+- [x] Register mutation auto-delivers first candidate on signup via selectFirstCandidate
+- [x] buildCandidatePackage maps deCODE targets to CandidatePackage with quality gate
+- [x] toCLFArea maps hematology → oncology (and other portal areas to CLF areas)
+- [x] PartnerPortal.tsx success step shows first candidate gene + area
+- [x] Add "Partner Network" nav link to Home.tsx nav bar
+- [x] PartnerPortal.tsx: full registration form with tier selection + agreement
+- [x] RoyaltyDashboard.tsx: overview/partners/deliveries/royalties tabs
+- [x] RoyaltyDashboard.tsx: record royalty form (admin only)
+- [x] server/partners.test.ts: 15 vitest tests for CLF integration + selectFirstCandidate
+- [x] All 42 tests passing (partners + alerts + design + auth)

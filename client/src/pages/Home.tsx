@@ -26,6 +26,7 @@ function Nav() {
           <a href="#alerts" className="hover:text-[#E30613] transition-colors">Sample Alerts</a>
           <a href="#pricing" className="hover:text-[#E30613] transition-colors">Pricing</a>
           <a href="/design" className="text-[#E30613] font-bold hover:underline transition-colors">Evolva</a>
+          <a href="/partners" className="hover:text-[#E30613] transition-colors">Partner Network</a>
         </div>
         <a
           href="#subscribe"
