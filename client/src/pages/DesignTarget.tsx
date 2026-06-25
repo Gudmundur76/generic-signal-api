@@ -176,6 +176,12 @@ function LayerCard({
     novelty: boolean;
     patent: "CLEAR" | "RISK" | "BLOCKED";
     generation: number;
+    meta?: {
+      source: string;
+      confidence: number;
+      structureUrl?: string;
+      bioactivity?: { ic50?: number; pIC50?: number };
+    };
   };
   runId: string;
   isRecommended: boolean;
@@ -235,6 +241,36 @@ function LayerCard({
           </span>
         </div>
       </div>
+
+      {/* Metadata row — AlphaFold + IC50 */}
+      {result.meta && (
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          {result.meta.structureUrl && (
+            <a
+              href={result.meta.structureUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-mono text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 hover:bg-blue-100 transition-colors"
+            >
+              <ExternalLink className="w-3 h-3" />
+              AlphaFold Structure
+            </a>
+          )}
+          {result.meta.bioactivity?.ic50 != null && (
+            <span className="inline-flex items-center gap-1 text-xs font-mono text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5">
+              IC50: {result.meta.bioactivity.ic50.toFixed(1)} nM
+              {result.meta.bioactivity.pIC50 != null && (
+                <span className="text-purple-500">
+                  &nbsp;(pIC50 {result.meta.bioactivity.pIC50.toFixed(2)})
+                </span>
+              )}
+            </span>
+          )}
+          <span className="text-xs font-mono text-gray-400">
+            src: {result.meta.source} · conf: {Math.round(result.meta.confidence * 100)}%
+          </span>
+        </div>
+      )}
 
       {/* Action row */}
       <div className="flex items-center gap-2">

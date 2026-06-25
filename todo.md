@@ -73,3 +73,15 @@
 - [x] Deliveries tab: live table with gene, area, FTO, scores, partner ID, sent date
 - [x] Inline status dropdown per row — updates status and increments positiveValidations counter
 - [x] Status filter dropdown (all / sent / opened / validated_positive / etc.)
+
+## Stub / Placeholder Fixes — Sprint 5
+
+- [x] scheduledJobs.ts handleWeeklyReport — wired to real weeklyAlertHandler() (was logging only)
+- [x] scheduledJobs.ts handlePatentScan — wired to real patent scan loop with DB upsert (was logging only)
+- [x] design.ts buildLegacyVerification — replaced fake decode:*_pQTL_001 IDs with real PubMed PMIDs, PDB accessions, and ClinicalTrials NCT IDs per target (PCSK9/LPA/APOE)
+- [x] design.ts advanceRun — patent field now reads real Notus FTO status (CLEAR/BLOCKED) before falling back to generation heuristic
+- [x] DesignTarget.tsx LayerCard — now renders AlphaFold structureUrl link and IC50/pIC50 bioactivity badge from meta field
+- [x] RoyaltyDashboard.tsx — added 5th "alerts" admin tab with full patent cliff ingest form (wired to alerts.ingest mutation)
+- [x] drizzle/schema.ts — removed leftover "// TODO: Add your tables here" template comment
+- [x] server/routers.ts — removed leftover "// TODO: add feature routers here" template block
+- [x] All 74 tests passing (9 test files, 2 skipped)

@@ -25,8 +25,6 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
-
 export const subscribers = mysqlTable("subscribers", {
   id: int("id").autoincrement().primaryKey(),
   email: varchar("email", { length: 320 }).notNull().unique(),

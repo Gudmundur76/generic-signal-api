@@ -30,7 +30,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function RoyaltyDashboard() {
   const { user, loading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<"overview" | "partners" | "deliveries" | "royalties">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "partners" | "deliveries" | "royalties" | "alerts">("overview");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
@@ -42,6 +42,27 @@ export default function RoyaltyDashboard() {
     { enabled: !!user && activeTab === "deliveries" }
   );
   const royaltySummary = trpc.partners.royaltySummary.useQuery(undefined, { enabled: !!user && activeTab === "royalties" });
+
+  // Alerts ingest form state
+  const [alertForm, setAlertForm] = useState({
+    patentNumber: "",
+    title: "",
+    assignee: "",
+    expiryDate: "",
+    niche: "",
+    molecularTarget: "",
+    status: "expiring" as "expiring" | "abandoned" | "reexamined",
+    confidence: "0.85",
+    patentUrl: "",
+  });
+
+  const ingestAlert = trpc.alerts.ingest.useMutation({
+    onSuccess(data) {
+      toast.success(`Alert ingested: ${data.patentNumber}`);
+      setAlertForm({ patentNumber: "", title: "", assignee: "", expiryDate: "", niche: "", molecularTarget: "", status: "expiring", confidence: "0.85", patentUrl: "" });
+    },
+    onError(err) { toast.error(err.message); },
+  });
 
   const updateStatus = trpc.partners.updateStatus.useMutation({
     onSuccess() {
@@ -112,7 +133,7 @@ export default function RoyaltyDashboard() {
       <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
         {/* Tabs */}
         <div className="flex gap-1 bg-zinc-900 rounded-lg p-1 w-fit">
-          {(["overview", "partners", "deliveries", "royalties"] as const).map((t) => (
+          {(["overview", "partners", "deliveries", "royalties", "alerts"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setActiveTab(t)}
@@ -339,6 +360,99 @@ export default function RoyaltyDashboard() {
         )}
 
         {/* Royalties */}
+        {activeTab === "alerts" && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-bold">Patent Cliff Ingest</h2>
+            <p className="text-zinc-400 text-sm">Add or update patent cliff records in the live database. These appear in the weekly digest and on the homepage alert cards.</p>
+
+            <Card className="bg-zinc-900 border-zinc-800">
+              <CardHeader>
+                <CardTitle className="text-base text-white">Ingest Patent Alert</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form
+                  className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    ingestAlert.mutate({
+                      patentNumber: alertForm.patentNumber,
+                      title: alertForm.title,
+                      assignee: alertForm.assignee,
+                      expiryDate: alertForm.expiryDate || null,
+                      niche: alertForm.niche || null,
+                      molecularTarget: alertForm.molecularTarget || null,
+                      status: alertForm.status,
+                      confidence: parseFloat(alertForm.confidence),
+                      patentUrl: alertForm.patentUrl || null,
+                    });
+                  }}
+                >
+                  <div className="space-y-2">
+                    <Label className="text-zinc-400">Patent Number *</Label>
+                    <Input value={alertForm.patentNumber} onChange={(e) => setAlertForm(f => ({ ...f, patentNumber: e.target.value }))}
+                      placeholder="US10000000B2" required className="bg-zinc-800 border-zinc-700 text-white" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-zinc-400">Title *</Label>
+                    <Input value={alertForm.title} onChange={(e) => setAlertForm(f => ({ ...f, title: e.target.value }))}
+                      placeholder="PCSK9 inhibitor composition" required className="bg-zinc-800 border-zinc-700 text-white" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-zinc-400">Assignee *</Label>
+                    <Input value={alertForm.assignee} onChange={(e) => setAlertForm(f => ({ ...f, assignee: e.target.value }))}
+                      placeholder="Amgen Inc." required className="bg-zinc-800 border-zinc-700 text-white" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-zinc-400">Status *</Label>
+                    <Select value={alertForm.status} onValueChange={(v) => setAlertForm(f => ({ ...f, status: v as typeof alertForm.status }))}>
+                      <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="expiring">Expiring</SelectItem>
+                        <SelectItem value="abandoned">Abandoned</SelectItem>
+                        <SelectItem value="reexamined">Re-examined / Narrowed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-zinc-400">Expiry Date</Label>
+                    <Input type="date" value={alertForm.expiryDate} onChange={(e) => setAlertForm(f => ({ ...f, expiryDate: e.target.value }))}
+                      className="bg-zinc-800 border-zinc-700 text-white" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-zinc-400">Confidence (0–1) *</Label>
+                    <Input type="number" step="0.01" min="0" max="1" value={alertForm.confidence}
+                      onChange={(e) => setAlertForm(f => ({ ...f, confidence: e.target.value }))}
+                      required className="bg-zinc-800 border-zinc-700 text-white" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-zinc-400">Niche / Therapeutic Area</Label>
+                    <Input value={alertForm.niche} onChange={(e) => setAlertForm(f => ({ ...f, niche: e.target.value }))}
+                      placeholder="cardiovascular" className="bg-zinc-800 border-zinc-700 text-white" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-zinc-400">Molecular Target (gene)</Label>
+                    <Input value={alertForm.molecularTarget} onChange={(e) => setAlertForm(f => ({ ...f, molecularTarget: e.target.value }))}
+                      placeholder="PCSK9" className="bg-zinc-800 border-zinc-700 text-white" />
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <Label className="text-zinc-400">Patent URL</Label>
+                    <Input value={alertForm.patentUrl} onChange={(e) => setAlertForm(f => ({ ...f, patentUrl: e.target.value }))}
+                      placeholder="https://patents.google.com/patent/US10000000B2" className="bg-zinc-800 border-zinc-700 text-white" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Button type="submit" disabled={ingestAlert.isPending}
+                      className="bg-red-600 hover:bg-red-700 text-white w-full">
+                      {ingestAlert.isPending ? "Ingesting…" : "Ingest Patent Alert"}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {activeTab === "royalties" && (
           <div className="space-y-6">
             <h2 className="text-xl font-bold">Royalty Tracker</h2>
