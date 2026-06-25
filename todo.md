@@ -124,3 +124,23 @@
 - [x] Test: enforces maxDeliveriesPerRun: 3 hard limit
 - [x] Test: blocks delivery when confidence < 0.80
 - [x] 0 TypeScript errors, 100 tests passing (12 test files, 2 skipped)
+
+## Autonomous Distribution Loop — Sprint 9
+
+- [x] Add distributionEvents table to drizzle/schema.ts
+- [x] Add approvalRequests table to drizzle/schema.ts
+- [x] Generate migration SQL and apply via webdev_execute_sql
+- [x] Create server/lib/autonomousLoop.ts (7-step loop, adapted to Drizzle)
+- [x] Create server/config/autonomousDistribution.ts (re-export config)
+- [x] Add tRPC router: autonomous.run, autonomous.approvals, autonomous.approve, autonomous.reject
+- [x] Wire heartbeat cron (every 6 hours) to runAutonomousDistributionLoop
+- [x] Add Autonomous Loop admin panel to RoyaltyDashboard (status, stats, approvals table, manual trigger, recent events)
+- [x] Test 1: evaluateSignal PCSK9 confidence 0.90 → auto-approved
+- [x] Test 2: evaluateSignal UNKNOWN99 confidence 0.90 → requires approval
+- [x] Test 3: evaluateSignal PCSK9 confidence 0.50 → should not act
+- [x] Test 4: generateSeedForGene returns 20nt DNA string
+- [x] Test 5: getLayerForGene PCSK9 → dna; ANGPTL3 → protein
+- [x] Test 6: getTherapeuticArea PCSK9 → cardiovascular
+- [x] Test 7: runAutonomousDistributionLoop with mock signals → correct LoopResult counts
+- [x] Test 8: createApprovalRequest + getPendingApprovals + approveRequest full flow
+- [x] 0 TypeScript errors, 113 tests passing (13 test files, 2 skipped)

@@ -1,6 +1,12 @@
 import { eq, gte, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, subscribers, InsertSubscriber, patentAlerts, InsertPatentAlert, PatentAlert } from "../drizzle/schema";
+import {
+  InsertUser, users,
+  subscribers, InsertSubscriber,
+  patentAlerts, InsertPatentAlert, PatentAlert,
+  distributionEvents, InsertDistributionEvent, DistributionEvent,
+  approvalRequests, InsertApprovalRequest, ApprovalRequest,
+} from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -156,4 +162,63 @@ export async function upsertPatentAlert(alert: InsertPatentAlert): Promise<void>
         patentUrl: alert.patentUrl,
       },
     });
+}
+
+// ── Distribution Event helpers ────────────────────────────────────────────────
+
+export async function insertDistributionEvent(event: InsertDistributionEvent): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(distributionEvents).values(event);
+}
+
+export async function getRecentDistributionEvents(limit = 10): Promise<DistributionEvent[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(distributionEvents)
+    .orderBy(desc(distributionEvents.createdAt))
+    .limit(limit);
+}
+
+// ── Approval Request helpers ──────────────────────────────────────────────────
+
+export async function insertApprovalRequest(req: InsertApprovalRequest): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(approvalRequests).values(req);
+}
+
+export async function getPendingApprovals(): Promise<ApprovalRequest[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(approvalRequests)
+    .where(eq(approvalRequests.status, "pending"))
+    .orderBy(desc(approvalRequests.createdAt));
+}
+
+export async function resolveApprovalRequest(
+  id: number,
+  resolution: "approved" | "rejected",
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(approvalRequests)
+    .set({ status: resolution, resolvedAt: new Date() })
+    .where(eq(approvalRequests.id, id));
+}
+
+export async function getApprovalRequestById(id: number): Promise<ApprovalRequest | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(approvalRequests)
+    .where(eq(approvalRequests.id, id))
+    .limit(1);
+  return rows[0] ?? null;
 }

@@ -30,7 +30,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function RoyaltyDashboard() {
   const { user, loading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<"overview" | "partners" | "deliveries" | "royalties" | "alerts">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "partners" | "deliveries" | "royalties" | "alerts" | "autonomous">("overview");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
@@ -42,6 +42,28 @@ export default function RoyaltyDashboard() {
     { enabled: !!user && activeTab === "deliveries" }
   );
   const royaltySummary = trpc.partners.royaltySummary.useQuery(undefined, { enabled: !!user && activeTab === "royalties" });
+
+  // Autonomous loop queries
+  const loopStatus = trpc.autonomous.status.useQuery(undefined, { enabled: !!user && activeTab === "autonomous", refetchInterval: 10000 });
+  const pendingApprovals = trpc.autonomous.approvals.useQuery(undefined, { enabled: !!user && activeTab === "autonomous" });
+  const recentEvents = trpc.autonomous.events.useQuery({ limit: 10 }, { enabled: !!user && activeTab === "autonomous" });
+  const runLoop = trpc.autonomous.run.useMutation({
+    onSuccess(data) {
+      toast.success(data.started ? `Loop complete: ${data.lastResult?.candidatesDelivered ?? 0} delivered` : "Loop already running");
+      loopStatus.refetch();
+      recentEvents.refetch();
+      pendingApprovals.refetch();
+    },
+    onError(err) { toast.error(err.message); },
+  });
+  const approveReq = trpc.autonomous.approve.useMutation({
+    onSuccess() { toast.success("Approved and re-queued"); pendingApprovals.refetch(); },
+    onError(err) { toast.error(err.message); },
+  });
+  const rejectReq = trpc.autonomous.reject.useMutation({
+    onSuccess() { toast.success("Rejected"); pendingApprovals.refetch(); },
+    onError(err) { toast.error(err.message); },
+  });
 
   // Alerts ingest form state
   const [alertForm, setAlertForm] = useState({
@@ -133,7 +155,7 @@ export default function RoyaltyDashboard() {
       <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
         {/* Tabs */}
         <div className="flex gap-1 bg-zinc-900 rounded-lg p-1 w-fit">
-          {(["overview", "partners", "deliveries", "royalties", "alerts"] as const).map((t) => (
+          {(["overview", "partners", "deliveries", "royalties", "alerts", "autonomous"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setActiveTab(t)}
@@ -554,6 +576,180 @@ export default function RoyaltyDashboard() {
                     </Button>
                   </div>
                 </form>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+        {/* Autonomous Loop */}
+        {activeTab === "autonomous" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold">Autonomous Distribution Loop</h2>
+              <div className="flex items-center gap-3">
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+                  loopStatus.data?.isRunning
+                    ? "bg-yellow-900/40 text-yellow-300"
+                    : "bg-green-900/40 text-green-300"
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    loopStatus.data?.isRunning ? "bg-yellow-400 animate-pulse" : "bg-green-400"
+                  }`} />
+                  {loopStatus.data?.isRunning ? "RUNNING" : "ACTIVE"}
+                </span>
+                <Button
+                  onClick={() => runLoop.mutate()}
+                  disabled={runLoop.isPending || loopStatus.data?.isRunning}
+                  className="bg-red-600 hover:bg-red-700 text-white text-sm"
+                >
+                  {runLoop.isPending ? "Running…" : "Run Loop Now"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Stats */}
+            {loopStatus.data?.lastResult && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { label: "Signals Found", value: loopStatus.data.lastResult.signalsFound, color: "text-white" },
+                  { label: "Candidates Designed", value: loopStatus.data.lastResult.candidatesDesigned, color: "text-blue-400" },
+                  { label: "Delivered", value: loopStatus.data.lastResult.candidatesDelivered, color: "text-green-400" },
+                  { label: "Approvals Required", value: loopStatus.data.lastResult.approvalsRequired, color: "text-yellow-400" },
+                ].map((m) => (
+                  <Card key={m.label} className="bg-zinc-900 border-zinc-800">
+                    <CardContent className="pt-6">
+                      <p className="text-zinc-500 text-sm">{m.label}</p>
+                      <p className={`text-3xl font-bold mt-1 ${m.color}`}>{m.value}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* Config summary */}
+            {loopStatus.data?.config && (
+              <Card className="bg-zinc-900 border-zinc-800">
+                <CardHeader><CardTitle className="text-base text-white">Loop Configuration</CardTitle></CardHeader>
+                <CardContent className="text-sm text-zinc-400 space-y-1">
+                  <p>Schedule: <span className="text-zinc-200 font-mono">{loopStatus.data.config.schedule}</span> (every 6 hours)</p>
+                  <p>Min signal confidence: <span className="text-zinc-200">{(loopStatus.data.config.minSignalConfidence * 100).toFixed(0)}%</span></p>
+                  <p>Min composite score: <span className="text-zinc-200">{(loopStatus.data.config.minCompositeScore * 100).toFixed(0)}%</span></p>
+                  <p>Max deliveries per run: <span className="text-zinc-200">{loopStatus.data.config.maxDeliveriesPerRun}</span></p>
+                  <p>Auto-design genes: <span className="text-zinc-200">{loopStatus.data.config.autoDesignGenes.join(", ")}</span></p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Pending approvals */}
+            <Card className="bg-zinc-900 border-zinc-800">
+              <CardHeader>
+                <CardTitle className="text-base text-white flex items-center gap-2">
+                  Pending Approvals
+                  {(pendingApprovals.data?.length ?? 0) > 0 && (
+                    <span className="bg-yellow-600 text-white text-xs px-2 py-0.5 rounded-full">
+                      {pendingApprovals.data!.length}
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {pendingApprovals.isLoading ? (
+                  <div className="flex justify-center py-6"><div className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
+                ) : pendingApprovals.data?.length ? (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-800 text-zinc-500">
+                        <th className="text-left py-2 pr-4">Gene</th>
+                        <th className="text-left py-2 pr-4">Reason</th>
+                        <th className="text-left py-2 pr-4">Confidence</th>
+                        <th className="text-left py-2 pr-4">Patent</th>
+                        <th className="text-left py-2 pr-4">Requested</th>
+                        <th className="text-right py-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingApprovals.data.map((req) => (
+                        <tr key={req.id} className="border-b border-zinc-900">
+                          <td className="py-2 pr-4 font-mono text-white">{req.gene}</td>
+                          <td className="py-2 pr-4 text-zinc-400">{req.reason.replace(/_/g, " ")}</td>
+                          <td className="py-2 pr-4 text-zinc-300">{req.confidence}%</td>
+                          <td className="py-2 pr-4 text-zinc-500 font-mono text-xs">{req.patentNumber ?? "—"}</td>
+                          <td className="py-2 pr-4 text-zinc-500 text-xs">{fmtDate(req.createdAt.toString())}</td>
+                          <td className="py-2 text-right">
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                size="sm"
+                                onClick={() => approveReq.mutate({ id: req.id })}
+                                disabled={approveReq.isPending}
+                                className="bg-green-700 hover:bg-green-600 text-white text-xs h-7"
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => rejectReq.mutate({ id: req.id })}
+                                disabled={rejectReq.isPending}
+                                className="border-zinc-600 text-zinc-300 hover:bg-zinc-800 text-xs h-7"
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-zinc-600 text-sm text-center py-8">No pending approvals.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Recent distribution events */}
+            <Card className="bg-zinc-900 border-zinc-800">
+              <CardHeader><CardTitle className="text-base text-white">Recent Distribution Events</CardTitle></CardHeader>
+              <CardContent>
+                {recentEvents.isLoading ? (
+                  <div className="flex justify-center py-6"><div className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
+                ) : recentEvents.data?.length ? (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-800 text-zinc-500">
+                        <th className="text-left py-2 pr-4">Gene</th>
+                        <th className="text-left py-2 pr-4">Source</th>
+                        <th className="text-left py-2 pr-4">Score</th>
+                        <th className="text-left py-2 pr-4">Partner</th>
+                        <th className="text-left py-2 pr-4">Status</th>
+                        <th className="text-right py-2">Delivered</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentEvents.data.map((ev) => (
+                        <tr key={ev.id} className="border-b border-zinc-900">
+                          <td className="py-2 pr-4 font-mono text-white">{ev.gene}</td>
+                          <td className="py-2 pr-4 text-zinc-400 text-xs">{ev.signalSource.replace(/_/g, " ")}</td>
+                          <td className="py-2 pr-4">
+                            <span className={`text-xs font-mono ${
+                              ev.compositeScore >= 80 ? "text-green-400" :
+                              ev.compositeScore >= 70 ? "text-yellow-400" : "text-red-400"
+                            }`}>{ev.compositeScore}</span>
+                          </td>
+                          <td className="py-2 pr-4 text-zinc-400 font-mono text-xs">#{ev.partnerId}</td>
+                          <td className="py-2 pr-4">
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              ev.status === "delivered" ? "bg-green-900/40 text-green-300" :
+                              ev.status === "held" ? "bg-yellow-900/40 text-yellow-300" :
+                              "bg-red-900/40 text-red-300"
+                            }`}>{ev.status}</span>
+                          </td>
+                          <td className="py-2 text-right text-zinc-500 text-xs">{fmtDate(ev.deliveredAt.toString())}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-zinc-600 text-sm text-center py-8">No distribution events yet. Run the loop to generate the first batch.</p>
+                )}
               </CardContent>
             </Card>
           </div>

@@ -29,6 +29,13 @@
       "when": 1782414550469,
       "tag": "0003_stale_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1782430961884,
+      "tag": "0004_sleepy_old_lace",
+      "breakpoints": true
     }
   ]
 }

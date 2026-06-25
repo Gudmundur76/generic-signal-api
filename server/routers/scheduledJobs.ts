@@ -102,3 +102,28 @@ export async function handlePatentScan(req: Request, res: Response): Promise<voi
 //   2. Appends Citation API footnotes per alert via verifyClaim()
 //   3. Notifies the project owner via Manus notifyOwner()
 export { weeklyAlertHandler as handleWeeklyReport };
+
+// ── Autonomous Distribution Loop Handler ──────────────────────────────────────
+// Runs every 6 hours via heartbeat cron.
+// Discovers patent signals, evaluates them, designs candidates, and delivers.
+
+import { runAutonomousDistributionLoop } from '../lib/autonomousLoop.js';
+
+export async function handleAutonomousLoop(req: Request, res: Response): Promise<void> {
+  try {
+    const user = await sdk.authenticateRequest(req);
+    if (!user.isCron) {
+      res.status(403).json({ error: 'cron-only' });
+      return;
+    }
+
+    const result = await runAutonomousDistributionLoop();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[autonomous-loop] error', err);
+    res.status(500).json({
+      error: String(err),
+      timestamp: new Date().toISOString(),
+    });
+  }
+}

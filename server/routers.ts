@@ -3,6 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { alertsRouter } from "./routers/alerts";
+import { autonomousRouter } from "./routers/autonomous";
 import { designRouter } from "./routers/design";
 import { partnersRouter } from "./routers/partners";
 import { addSubscriber } from "./db";
@@ -23,6 +24,7 @@ export const appRouter = router({
   }),
 
   alerts: alertsRouter,
+  autonomous: autonomousRouter,
   design: designRouter,
   partners: partnersRouter,
 

@@ -10,7 +10,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { weeklyAlertHandler } from "../routers/weeklyAlert";
-import { handlePatentScan, handleWeeklyReport } from "../routers/scheduledJobs";
+import { handlePatentScan, handleWeeklyReport, handleAutonomousLoop } from "../routers/scheduledJobs";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -63,6 +63,7 @@ async function startServer() {
   app.post("/api/scheduled/weeklyAlert", weeklyAlertHandler);
   app.post("/api/scheduled/patent-scan", handlePatentScan);
   app.post("/api/scheduled/weekly-report", handleWeeklyReport);
+  app.post("/api/scheduled/autonomous-loop", handleAutonomousLoop); // every 6 hours
 
   // tRPC API
   app.use(

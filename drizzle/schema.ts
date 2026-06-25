@@ -121,3 +121,33 @@ export const patentAlerts = mysqlTable("patentAlerts", {
 });
 export type PatentAlert = typeof patentAlerts.$inferSelect;
 export type InsertPatentAlert = typeof patentAlerts.$inferInsert;
+
+// ── Autonomous Distribution Loop ──────────────────────────────────────────────
+
+export const distributionEvents = mysqlTable("distributionEvents", {
+  id: int("id").autoincrement().primaryKey(),
+  signalSource: varchar("signalSource", { length: 64 }).notNull(), // 'patent_cliff' | 'molecular_distress'
+  gene: varchar("gene", { length: 32 }).notNull(),
+  patentNumber: varchar("patentNumber", { length: 32 }),
+  sequence: text("sequence").notNull(),
+  compositeScore: int("compositeScore").notNull(), // 0–100 integer
+  partnerId: int("partnerId").notNull(),
+  status: mysqlEnum("status", ["delivered", "failed", "held"]).default("delivered").notNull(),
+  deliveredAt: timestamp("deliveredAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type DistributionEvent = typeof distributionEvents.$inferSelect;
+export type InsertDistributionEvent = typeof distributionEvents.$inferInsert;
+
+export const approvalRequests = mysqlTable("approvalRequests", {
+  id: int("id").autoincrement().primaryKey(),
+  gene: varchar("gene", { length: 32 }).notNull(),
+  patentNumber: varchar("patentNumber", { length: 32 }),
+  reason: varchar("reason", { length: 255 }).notNull(),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  confidence: int("confidence").notNull(), // stored as integer 0–100
+  resolvedAt: timestamp("resolvedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ApprovalRequest = typeof approvalRequests.$inferSelect;
+export type InsertApprovalRequest = typeof approvalRequests.$inferInsert;
