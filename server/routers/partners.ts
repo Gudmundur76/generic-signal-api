@@ -25,6 +25,7 @@ import {
 import { defaultGate } from "../lib/clf/qualityGate";
 import type { CandidatePackage } from "../lib/clf/types";
 import { notifyOwner } from "../_core/notification";
+import { evaluateDeliveryGate } from "../lib/autoDelivery";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -266,40 +267,63 @@ export const partnersRouter = router({
 
         if (selection) {
           const { pkg } = selection;
-          firstCandidateGene = pkg.gene;
-          firstCandidateArea = pkg.area;
 
-          const followUpDueAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-          // Insert delivery record
-          await d.insert(deliveries).values({
-            candidateId: pkg.id,
-            partnerId,
+          // ── Approval gate ──────────────────────────────────────────────────
+          const gate = await evaluateDeliveryGate({
             gene: pkg.gene,
-            therapeuticArea: pkg.area,
-            noveltyScore: pkg.noveltyScore,
             compositeScore: pkg.compositeScore,
-            fto: pkg.fto,
-            status: "sent",
-            sentAt: now,
-            followUpDueAt,
-            updatedAt: now,
+            confidence: pkg.citationEvidence.confidence,
+            deliveriesThisRun: 0, // first delivery in this register call
+            partnerName: input.name,
+            partnerEmail: input.email,
+            therapeuticArea: pkg.area,
           });
 
-          // Increment candidatesDelivered counter
-          await d
-            .update(partners)
-            .set({
-              candidatesDelivered: sql`candidatesDelivered + 1`,
-              updatedAt: now,
-            })
-            .where(eq(partners.id, partnerId));
-
           console.log(
-            `[partners.register] First candidate delivered: ${pkg.gene} (${pkg.area}) → partner #${partnerId}`,
+            `[partners.register] Gate decision: ${gate.decision} — ${gate.reason}`,
           );
 
-          // Notify owner of new partner + first candidate delivery
+          if (gate.decision === "AUTO") {
+            firstCandidateGene = pkg.gene;
+            firstCandidateArea = pkg.area;
+
+            const followUpDueAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+            // Insert delivery record
+            await d.insert(deliveries).values({
+              candidateId: pkg.id,
+              partnerId,
+              gene: pkg.gene,
+              therapeuticArea: pkg.area,
+              noveltyScore: pkg.noveltyScore,
+              compositeScore: pkg.compositeScore,
+              fto: pkg.fto,
+              status: "sent",
+              sentAt: now,
+              followUpDueAt,
+              updatedAt: now,
+            });
+
+            // Increment candidatesDelivered counter
+            await d
+              .update(partners)
+              .set({
+                candidatesDelivered: sql`candidatesDelivered + 1`,
+                updatedAt: now,
+              })
+              .where(eq(partners.id, partnerId));
+
+            console.log(
+              `[partners.register] First candidate delivered: ${pkg.gene} (${pkg.area}) → partner #${partnerId}`,
+            );
+          } else {
+            // HOLD or BLOCK — do not deliver, gate already sent notification if needed
+            console.log(
+              `[partners.register] Delivery held/blocked for ${pkg.gene}: ${gate.reason}`,
+            );
+          }
+
+          // Notify owner of new partner registration (always) + delivery outcome
           notifyOwner({
             title: `New partner registered: ${input.name}`,
             content: [
@@ -307,7 +331,11 @@ export const partnersRouter = router({
               `**Email:** ${input.email}`,
               `**Tier:** ${input.tier}`,
               `**Areas:** ${input.therapeuticAreas.join(", ")}`,
-              `**First candidate delivered:** ${pkg.gene} (${pkg.area})`,
+              `**Candidate:** ${pkg.gene} (${pkg.area})`,
+              `**Gate decision:** ${gate.decision} — ${gate.reason}`,
+              gate.decision === "AUTO"
+                ? `**Status:** Delivered automatically`
+                : `**Status:** Held for approval — no delivery made`,
               `**Novelty score:** ${pkg.noveltyScore}/100`,
               `**Composite score:** ${pkg.compositeScore}/100`,
               `**FTO:** ${pkg.fto}`,
@@ -337,7 +365,7 @@ export const partnersRouter = router({
       const candidateMsg =
         firstCandidateGene
           ? `Your first candidate (${firstCandidateGene}, ${firstCandidateArea}) has been queued for delivery.`
-          : "Your first candidate will arrive within 24 hours.";
+          : "Your registration is confirmed. A candidate is under review and will be delivered once approved by our team.";
 
       return {
         success: true,

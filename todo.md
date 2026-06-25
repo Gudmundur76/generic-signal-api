@@ -111,3 +111,16 @@
 - [x] Test 5: Protein candidate → skips Evo 2 check (DNA layer only)
 - [x] Test 6: API 503 → returns null, gate continues (non-blocking)
 - [x] 0 TypeScript errors, all 94 tests pass (11 test files, 2 skipped)
+
+## Auto-Delivery Approval Gate — Sprint 8
+
+- [x] Add AUTO_DELIVERY_CONFIG to shared/const.ts
+- [x] Create server/lib/autoDelivery.ts with gate logic (auto-deliver, approval-required, hard limits)
+- [x] Wire autoDelivery gate into partners.ts register mutation
+- [x] Send owner notification email for novelTarget and compositeBelow85 approval cases
+- [x] Test: auto-delivers known gene with score >= 85 and confidence >= 0.80
+- [x] Test: blocks delivery for novel gene and sends owner notification
+- [x] Test: blocks delivery when compositeScore < 85 and sends owner notification
+- [x] Test: enforces maxDeliveriesPerRun: 3 hard limit
+- [x] Test: blocks delivery when confidence < 0.80
+- [x] 0 TypeScript errors, 100 tests passing (12 test files, 2 skipped)
