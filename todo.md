@@ -98,3 +98,16 @@
 - [x] Test: patentAlerts table has 5 rows after seed
 - [x] Test: getRecentAlerts() returns 5 alerts
 - [x] 0 TypeScript errors
+
+## Evo 2 Biological Plausibility Scoring — Sprint 7
+
+- [x] Create server/lib/evo2Scorer.ts with scoreBiologicalPlausibility()
+- [x] Add NVIDIA_NIM_API_KEY secret via webdev_request_secrets (pending user key)
+- [x] Wire Evo 2 check into qualityGate.ts (DNA layer only, 15% composite weight)
+- [x] Test 1: scoreBiologicalPlausibility("ATGCGATCGATCG") returns plausibility in [0,1]
+- [x] Test 2: scoreBiologicalPlausibility("XYZ123") returns null (invalid DNA)
+- [x] Test 3: DNA candidate + low Evo 2 score → quality gate fails
+- [x] Test 4: DNA candidate + high Evo 2 score → quality gate passes
+- [x] Test 5: Protein candidate → skips Evo 2 check (DNA layer only)
+- [x] Test 6: API 503 → returns null, gate continues (non-blocking)
+- [x] 0 TypeScript errors, all 94 tests pass (11 test files, 2 skipped)

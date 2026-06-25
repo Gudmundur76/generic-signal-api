@@ -43,7 +43,8 @@ export type QualityCheckName =
   | "fto"
   | "decode_significance"
   | "citation_confidence"
-  | "composite_score";
+  | "composite_score"
+  | "evo2_plausibility";
 
 export interface QualityCheck {
   name: QualityCheckName;

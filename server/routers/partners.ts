@@ -118,10 +118,10 @@ function buildCandidatePackage(
  * Strategy: iterate partner's therapeutic areas, pick the target with the
  * lowest p-value that passes the quality gate.
  */
-function selectFirstCandidate(
+async function selectFirstCandidate(
   therapeuticAreas: string[],
   partnerId: number,
-): { pkg: CandidatePackage; area: string } | null {
+): Promise<{ pkg: CandidatePackage; area: string } | null> {
   // Build a flat list of (area, target) pairs sorted by p-value ascending
   const candidates: Array<{ area: string; target: ReturnType<typeof getTopTargets>[number] }> = [];
 
@@ -136,10 +136,10 @@ function selectFirstCandidate(
   // Sort by p-value ascending (most significant first)
   candidates.sort((a, b) => a.target.pValue - b.target.pValue);
 
-  // Find first candidate that passes the quality gate
+  // Find first candidate that passes the quality gate (async — includes Evo 2 for DNA layers)
   for (const { area, target } of candidates) {
     const pkg = buildCandidatePackage(target, area, partnerId);
-    const result = defaultGate.evaluate(pkg);
+    const result = await defaultGate.evaluateAsync(pkg);
     if (result.passed) {
       return { pkg, area };
     }
@@ -259,7 +259,7 @@ export const partnersRouter = router({
       let firstCandidateArea: string | null = null;
 
       try {
-        const selection = selectFirstCandidate(
+        const selection = await selectFirstCandidate(
           input.therapeuticAreas as string[],
           partnerId,
         );
