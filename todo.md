@@ -159,3 +159,25 @@
 - [x] Test 5: BLOCKED ftoStatus → recommendation is "do not file"
 - [x] Test 6: broad-claim family match → recommendation is "fto-analysis-required"
 - [x] 0 TypeScript errors, 126 tests passing (14 test files, 2 skipped)
+
+## Sprint 11 — USPTO Prior Art, ResistAgent, Patent Filing Readiness
+
+- [x] Create server/lib/usptoSearch.ts (PatentsView API prior art search by SMILES/keyword)
+- [x] Add design.getTopCandidateSmiles tRPC procedure (returns top-10 SMILES from a run)
+- [x] Create server/lib/resistAgent.ts (HIV resistance mutations registry + scoreResistanceProfile)
+- [x] Add design.getPatentFilingReadiness tRPC procedure (structured checklist: Tanimoto, pIC50, FTO, ADMET flags, resistance profile)
+- [x] Update DesignTarget.tsx: added UsptoSearchPanel sub-component (USPTO Prior Art tab)
+- [x] Update DesignTarget.tsx: added FilingReadinessPanel sub-component (Filing Readiness tab)
+- [x] Update DesignTarget.tsx: added USPTO Prior Art and Filing Readiness tabs to tab bar
+- [x] Fix targetName cast to include all 8 targets
+- [x] Test 1: extractChemicalKeywords returns keywords from SMILES string
+- [x] Test 2: searchUsptoByKeyword returns PatentResult array on success
+- [x] Test 3: searchUsptoByKeyword returns empty array on API failure
+- [x] Test 4: searchUsptoFull deduplicates and caps at 10
+- [x] Test 5: searchUsptoFull returns empty array when fetch throws
+- [x] Test 6: RESISTANCE_MUTATIONS has V82A, I84V, L90M entries
+- [x] Test 7: scoreResistanceProfile returns valid profile for pIC50 9.0
+- [x] Test 8: high pIC50 (10.0) yields resistance-robust
+- [x] Test 9: low pIC50 (5.0) yields resistance-sensitive
+- [x] Test 10: getKeyMutationSummary returns V82A, I84V, L90M keys
+- [x] 0 TypeScript errors, 136 tests passing (15 test files, 2 skipped)

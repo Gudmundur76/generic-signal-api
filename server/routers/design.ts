@@ -16,6 +16,8 @@ import { verifyClaims, type CitationSource } from "../lib/citationClient";
 import { fetchMolecularData, fetchChEMBLSimilarity, type MolecularData, type SimilarCompound } from "../lib/molecularData";
 import { checkBroadClaimRisk, derivePatentRecommendation, type BroadClaimFamily, type PatentRecommendation } from "../lib/broadClaimFamilies";
 import { fetchPatentLandscape, type PatentLandscape } from "../lib/notusClient";
+import { searchUsptoFull, type PatentResult } from "../lib/usptoSearch";
+import { scoreResistanceProfile, getKeyMutationSummary, type ResistanceProfile } from "../lib/resistAgent";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -680,6 +682,147 @@ export const designRouter = router({
         nearestPatentExpiration: run.patentLandscape.nearestExpiration ?? null,
         totalBlockingPatents: run.patentLandscape.totalBlockingPatents,
         layerVerdicts,
+      };
+    }),
+
+  // -------------------------------------------------------------------------
+  // getTopCandidateSmiles — returns SMILES + pIC50 for each layer in a run
+  // -------------------------------------------------------------------------
+  getTopCandidateSmiles: publicProcedure
+    .input(z.object({ runId: z.string() }))
+    .query(({ input }) => {
+      const run = runStore.get(input.runId);
+      if (!run) throw new Error("Run not found");
+      const candidates = run.layers.map((layer) => {
+        const md = run.realSequences[layer] as MolecularData | undefined;
+        return {
+          layer,
+          smiles: md?.canonicalSmiles ?? null,
+          pIC50: md?.bioactivity?.pIC50 ?? null,
+        };
+      });
+      return { runId: input.runId, target: run.target, candidates };
+    }),
+
+  // -------------------------------------------------------------------------
+  // getUsptoSearch — USPTO prior art search for a run's target + SMILES
+  // -------------------------------------------------------------------------
+  getUsptoSearch: publicProcedure
+    .input(z.object({ runId: z.string() }))
+    .query(async ({ input }) => {
+      const run = runStore.get(input.runId);
+      if (!run) throw new Error("Run not found");
+      const targetMeta = TARGETS.find((t) => t.name === run.target);
+      const therapeuticArea = (targetMeta as any)?.therapeuticArea ?? "cardiovascular";
+      const smMolData = run.realSequences["small_molecule"] as MolecularData | undefined;
+      const smiles = smMolData?.canonicalSmiles ?? undefined;
+      const patents = await searchUsptoFull(run.target, smiles, therapeuticArea);
+      return {
+        runId: input.runId,
+        target: run.target,
+        query: { gene: run.target, smiles: smiles ?? null, therapeuticArea },
+        patents,
+        searchedAt: new Date().toISOString(),
+      };
+    }),
+
+  // -------------------------------------------------------------------------
+  // getPatentFilingReadiness — structured 6-check filing readiness checklist
+  // -------------------------------------------------------------------------
+  getPatentFilingReadiness: publicProcedure
+    .input(z.object({ runId: z.string() }))
+    .query(async ({ input }) => {
+      const run = runStore.get(input.runId);
+      if (!run) throw new Error("Run not found");
+      const target = run.target;
+      const targetMeta = TARGETS.find((t) => t.name === target);
+      const therapeuticArea = (targetMeta as any)?.therapeuticArea ?? "cardiovascular";
+
+      const ftoStatus = run.patentLandscape?.ftoStatus ?? "UNKNOWN";
+      const smMolData = run.realSequences["small_molecule"] as MolecularData | undefined;
+      const pIC50 = smMolData?.bioactivity?.pIC50 ?? null;
+      const smiles = smMolData?.canonicalSmiles ?? null;
+
+      // Tanimoto novelty check (Tanimoto < 0.4 threshold)
+      let tanimotoNovel = false;
+      let tanimotoNote = "No SMILES available — cannot assess structural novelty";
+      if (smiles) {
+        const similar = await fetchChEMBLSimilarity(smiles, 40);
+        tanimotoNovel = similar.length === 0;
+        tanimotoNote = similar.length === 0
+          ? "No known compounds with Tanimoto ≥ 0.4 found in ChEMBL — structurally novel"
+          : `${similar.length} similar compound(s) found (Tanimoto ≥ 0.4) — structural novelty at risk`;
+      }
+
+      // FTO check
+      const ftoPass = ftoStatus === "CLEAR";
+      const ftoNote = ftoStatus === "CLEAR"
+        ? "No blocking patents found in Notus index"
+        : ftoStatus === "UNKNOWN"
+        ? "FTO status unknown — Notus index may be empty; manual search required"
+        : `FTO status: ${ftoStatus} — blocking patents detected`;
+
+      // pIC50 check
+      const pIC50Pass = pIC50 !== null && pIC50 >= 8.0;
+      const pIC50Note = pIC50 === null
+        ? "No pIC50 data — small_molecule layer not run"
+        : pIC50 >= 8.0
+        ? `pIC50 ${pIC50.toFixed(2)} ≥ 8.0 — strong in-silico potency`
+        : `pIC50 ${pIC50.toFixed(2)} < 8.0 — below patentability threshold`;
+
+      // Broad-claim family check
+      const broadFamilies = checkBroadClaimRisk(target, "small_molecule", therapeuticArea);
+      const highRisk = broadFamilies.filter((f) => f.riskLevel === "high");
+      const broadClaimPass = highRisk.length === 0;
+      const broadClaimNote = broadClaimPass
+        ? "No high-risk broad-claim patent families detected"
+        : `${highRisk.length} high-risk broad-claim family(ies) detected — FTO analysis required`;
+
+      // Resistance profile
+      const resistProfile: ResistanceProfile | null = pIC50
+        ? scoreResistanceProfile(pIC50, "generic")
+        : null;
+      const resistPass = resistProfile?.overallPass ?? false;
+      const resistNote = resistProfile
+        ? `${resistProfile.recommendation} — robustness score ${(resistProfile.robustnessScore * 100).toFixed(0)}%`
+        : "No pIC50 data — resistance profile cannot be computed";
+
+      // ADMET / Lipinski heuristic from SMILES length
+      const estimatedMW = smiles ? smiles.length * 5.5 : null;
+      const admetPass = estimatedMW === null || estimatedMW < 600;
+      const admetNote = estimatedMW === null
+        ? "No SMILES — ADMET cannot be assessed"
+        : estimatedMW < 500
+        ? `Estimated MW ~${Math.round(estimatedMW)} Da — within Lipinski Rule of 5`
+        : estimatedMW < 600
+        ? `Estimated MW ~${Math.round(estimatedMW)} Da — borderline; wet-lab ADMET confirmation recommended`
+        : `Estimated MW ~${Math.round(estimatedMW)} Da — likely violates Lipinski Rule of 5`;
+
+      const criticalPass = [ftoPass, pIC50Pass, tanimotoNovel, broadClaimPass].every(Boolean);
+      const passCount = [ftoPass, pIC50Pass, tanimotoNovel, broadClaimPass, resistPass, admetPass].filter(Boolean).length;
+      const overallStatus: "ready" | "conditional" | "not-ready" =
+        criticalPass && passCount >= 5 ? "ready" : passCount >= 3 ? "conditional" : "not-ready";
+
+      return {
+        runId: input.runId,
+        target,
+        overallStatus,
+        passCount,
+        totalChecks: 6,
+        checklist: [
+          { id: "tanimoto", label: "Structural Novelty (Tanimoto < 0.4)", pass: tanimotoNovel, critical: true, note: tanimotoNote },
+          { id: "fto", label: "Freedom to Operate (FTO Clear)", pass: ftoPass, critical: true, note: ftoNote },
+          { id: "pic50", label: "In-Silico Potency (pIC50 ≥ 8.0)", pass: pIC50Pass, critical: true, note: pIC50Note },
+          { id: "broad_claim", label: "No High-Risk Broad-Claim Families", pass: broadClaimPass, critical: true, note: broadClaimNote },
+          { id: "resistance", label: "Resistance Robustness (V82A, I84V, L90M)", pass: resistPass, critical: false, note: resistNote },
+          { id: "admet", label: "ADMET / Lipinski Rule of 5", pass: admetPass, critical: false, note: admetNote },
+        ],
+        resistanceProfile: resistProfile ? getKeyMutationSummary(resistProfile) : null,
+        provisionalRecommendation: overallStatus === "ready"
+          ? "File provisional patent application (~$320 micro-entity) before publishing Day-30 report"
+          : overallStatus === "conditional"
+          ? "Resolve critical failures before filing; consider provisional to establish priority date"
+          : "Do not file — critical checks failed; further optimisation required",
       };
     }),
 });

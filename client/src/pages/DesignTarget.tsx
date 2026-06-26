@@ -313,6 +313,216 @@ function PatentClearancePanel({ runId }: { runId: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// USPTO Prior Art sub-component
+// ---------------------------------------------------------------------------
+
+function UsptoSearchPanel({ runId }: { runId: string }) {
+  const { data, isLoading, error } = trpc.design.getUsptoSearch.useQuery(
+    { runId },
+    { enabled: !!runId }
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 py-8 text-xs font-mono text-gray-400">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Searching USPTO PatentsView database…
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="py-8 text-xs font-mono text-red-600">
+        USPTO search unavailable.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="mb-4">
+        <h2 className="text-xl font-black text-black">USPTO Prior Art Search</h2>
+        <div className="text-xs font-mono text-gray-500 mt-0.5">
+          PatentsView API · keyword + SMILES chemical class extraction · searched {new Date(data.searchedAt).toLocaleString()}
+        </div>
+        {data.query.smiles && (
+          <div className="mt-1 text-xs font-mono text-gray-400 truncate">
+            SMILES: {data.query.smiles}
+          </div>
+        )}
+      </div>
+
+      {data.patents.length === 0 ? (
+        <div className="border border-green-200 bg-green-50 p-4 text-xs font-mono text-green-800 flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4" />
+          No prior art found in USPTO PatentsView for {data.target}. Structural novelty likely.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {data.patents.map((p, i) => (
+            <div key={i} className="border border-gray-200 p-4">
+              <div className="flex items-start justify-between gap-4 mb-2">
+                <div>
+                  <a
+                    href={p.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-bold text-blue-700 hover:underline flex items-center gap-1"
+                  >
+                    US{p.patentNumber}
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <div className="text-xs text-gray-700 mt-0.5 leading-snug">{p.title}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-xs font-mono text-gray-500">Relevance</div>
+                  <div className={`text-sm font-black ${
+                    p.relevanceScore >= 0.7 ? "text-red-700" :
+                    p.relevanceScore >= 0.4 ? "text-yellow-700" : "text-gray-500"
+                  }`}>
+                    {(p.relevanceScore * 100).toFixed(0)}%
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-xs font-mono text-gray-500">
+                {p.assignee && <span>{p.assignee}</span>}
+                {p.grantDate && <span>Granted: {new Date(p.grantDate).toLocaleDateString()}</span>}
+                {p.filingDate && <span>Filed: {new Date(p.filingDate).toLocaleDateString()}</span>}
+              </div>
+              {p.abstract && (
+                <div className="mt-2 text-xs text-gray-600 leading-relaxed line-clamp-3">
+                  {p.abstract}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Filing Readiness sub-component
+// ---------------------------------------------------------------------------
+
+const STATUS_CONFIG = {
+  ready: { label: "Ready to File", color: "bg-green-100 text-green-800 border-green-300", icon: <ShieldCheck className="w-4 h-4 text-green-700" /> },
+  conditional: { label: "Conditional", color: "bg-yellow-100 text-yellow-800 border-yellow-300", icon: <ShieldAlert className="w-4 h-4 text-yellow-700" /> },
+  "not-ready": { label: "Not Ready", color: "bg-red-100 text-red-800 border-red-300", icon: <ShieldX className="w-4 h-4 text-red-700" /> },
+} as const;
+
+function FilingReadinessPanel({ runId }: { runId: string }) {
+  const { data, isLoading, error } = trpc.design.getPatentFilingReadiness.useQuery(
+    { runId },
+    { enabled: !!runId }
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 py-8 text-xs font-mono text-gray-400">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Running filing readiness checks…
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="py-8 text-xs font-mono text-red-600">
+        Filing readiness analysis unavailable.
+      </div>
+    );
+  }
+
+  const statusCfg = STATUS_CONFIG[data.overallStatus];
+
+  return (
+    <div className="space-y-6">
+      <div className="mb-4">
+        <h2 className="text-xl font-black text-black">Patent Filing Readiness</h2>
+        <div className="text-xs font-mono text-gray-500 mt-0.5">
+          Structural novelty · FTO · pIC50 · Broad-claim risk · Resistance robustness · ADMET
+        </div>
+      </div>
+
+      {/* Overall status */}
+      <div className={`border p-5 ${statusCfg.color}`}>
+        <div className="flex items-center gap-3 mb-2">
+          {statusCfg.icon}
+          <span className="text-sm font-black uppercase tracking-widest">{statusCfg.label}</span>
+          <span className="ml-auto text-xs font-mono">{data.passCount}/{data.totalChecks} checks passed</span>
+        </div>
+        <p className="text-xs leading-relaxed">{data.provisionalRecommendation}</p>
+      </div>
+
+      {/* Checklist */}
+      <div className="space-y-2">
+        {data.checklist.map((item) => (
+          <div
+            key={item.id}
+            className={`flex items-start gap-3 p-3 border text-xs ${
+              item.pass
+                ? "border-green-200 bg-green-50"
+                : item.critical
+                ? "border-red-200 bg-red-50"
+                : "border-yellow-200 bg-yellow-50"
+            }`}
+          >
+            {item.pass ? (
+              <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className={`w-4 h-4 shrink-0 mt-0.5 ${item.critical ? "text-red-600" : "text-yellow-600"}`} />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-bold">{item.label}</span>
+                {item.critical && (
+                  <span className="text-xs font-mono px-1 py-0.5 bg-gray-800 text-white uppercase">Critical</span>
+                )}
+              </div>
+              <div className="text-gray-600 mt-0.5 leading-relaxed">{item.note}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Resistance profile key mutations */}
+      {data.resistanceProfile && (
+        <div>
+          <div className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-3">
+            Key Mutation Panel (V82A · I84V · L90M)
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {Object.entries(data.resistanceProfile).map(([mut, score]) => {
+              const s = score as { mutation: string; predictedPIC50: number; foldChange: number; passes: boolean; clinicalFrequency: string };
+              return (
+                <div
+                  key={mut}
+                  className={`border p-3 text-xs ${
+                    s.passes ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"
+                  }`}
+                >
+                  <div className="font-black text-sm mb-1">{s.mutation}</div>
+                  <div className="font-mono text-gray-700">pIC50: {s.predictedPIC50.toFixed(2)}</div>
+                  <div className="font-mono text-gray-500">{s.foldChange.toFixed(1)}× fold resistance</div>
+                  <div className={`mt-1 font-mono uppercase text-xs ${
+                    s.passes ? "text-green-700" : "text-red-700"
+                  }`}>
+                    {s.passes ? "✓ passes" : "✗ fails"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Evidence trail sub-component
 // ---------------------------------------------------------------------------
 
@@ -550,7 +760,7 @@ export default function DesignTarget() {
 
   const [runId, setRunId] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
-  const [activeTab, setActiveTab] = useState<"results" | "patent">("results");
+  const [activeTab, setActiveTab] = useState<"results" | "patent" | "uspto" | "filing">("results");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const evolveMutation = trpc.design.evolve.useMutation({
@@ -587,7 +797,7 @@ export default function DesignTarget() {
   const handleRunEvolution = () => {
     if (!target) return;
     evolveMutation.mutate({
-      target: targetName as "PCSK9" | "LPA" | "APOE",
+      target: targetName as "PCSK9" | "LPA" | "APOE" | "ANGPTL3" | "CETP" | "HMGCR" | "APOC3" | "TTR",
       layers: target.layers,
     });
   };
@@ -735,11 +945,33 @@ export default function DesignTarget() {
                 className={`px-5 py-2.5 text-xs font-mono uppercase tracking-widest transition-colors flex items-center gap-1.5 ${
                   activeTab === "patent"
                     ? "bg-black text-white"
-                    : "bg-white text-gray-500 hover:text-black"
+                    : "bg-white text-gray-500 hover:text-black border-r border-gray-200"
                 }`}
               >
                 <Shield className="w-3 h-3" />
                 Patent Clearance
+              </button>
+              <button
+                onClick={() => setActiveTab("uspto")}
+                className={`px-5 py-2.5 text-xs font-mono uppercase tracking-widest transition-colors flex items-center gap-1.5 ${
+                  activeTab === "uspto"
+                    ? "bg-black text-white"
+                    : "bg-white text-gray-500 hover:text-black border-r border-gray-200"
+                }`}
+              >
+                <ShieldAlert className="w-3 h-3" />
+                USPTO Prior Art
+              </button>
+              <button
+                onClick={() => setActiveTab("filing")}
+                className={`px-5 py-2.5 text-xs font-mono uppercase tracking-widest transition-colors flex items-center gap-1.5 ${
+                  activeTab === "filing"
+                    ? "bg-black text-white"
+                    : "bg-white text-gray-500 hover:text-black"
+                }`}
+              >
+                <CheckCircle2 className="w-3 h-3" />
+                Filing Readiness
               </button>
             </div>
 
@@ -782,6 +1014,14 @@ export default function DesignTarget() {
                 </div>
                 <PatentClearancePanel runId={results.runId} />
               </>
+            )}
+
+            {activeTab === "uspto" && (
+              <UsptoSearchPanel runId={results.runId} />
+            )}
+
+            {activeTab === "filing" && (
+              <FilingReadinessPanel runId={results.runId} />
             )}
           </div>
         )}
