@@ -13,7 +13,8 @@ import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
 import { nanoid } from "nanoid";
 import { verifyClaims, type CitationSource } from "../lib/citationClient";
-import { fetchMolecularData, type MolecularData } from "../lib/molecularData";
+import { fetchMolecularData, fetchChEMBLSimilarity, type MolecularData, type SimilarCompound } from "../lib/molecularData";
+import { checkBroadClaimRisk, derivePatentRecommendation, type BroadClaimFamily, type PatentRecommendation } from "../lib/broadClaimFamilies";
 import { fetchPatentLandscape, type PatentLandscape } from "../lib/notusClient";
 
 // ---------------------------------------------------------------------------
@@ -577,6 +578,108 @@ export const designRouter = router({
         layer: input.layer,
         claims: evidenceClaims,
         overallConfidence,
+      };
+    }),
+
+  /**
+   * Patent Clear Path Assessment for a completed run.
+   *
+   * For each molecular layer in the run:
+   *   1. Reads the Notus FTO status already stored on the run
+   *   2. Checks the BROAD_CLAIM_FAMILIES registry for high/medium risk families
+   *   3. If a canonical SMILES is available (small_molecule layer), runs a
+   *      ChEMBL Tanimoto similarity search (threshold 70) to surface known
+   *      compounds that may be cited as prior art
+   *   4. Derives a patent recommendation:
+   *        proceed | proceed-with-caution | fto-analysis-required | do-not-file
+   */
+  getPatentClearance: publicProcedure
+    .input(z.object({ runId: z.string() }))
+    .query(async ({ input }) => {
+      const run = runStore.get(input.runId);
+      if (!run) throw new Error(`Run ${input.runId} not found`);
+
+      const targetMeta = TARGETS.find((t) => t.name === run.target);
+      const therapeuticArea = (targetMeta as any)?.therapeuticArea ?? "cardiovascular";
+
+      const layerVerdicts = await Promise.all(
+        run.layers.map(async (layer) => {
+          const ftoStatus = run.patentLandscape.ftoStatus;
+          const blockingPatents = run.patentLandscape.patents ?? [];
+
+          const broadClaimFamilies: BroadClaimFamily[] = checkBroadClaimRisk(
+            run.target,
+            layer,
+            therapeuticArea
+          );
+
+          let similarKnownCompounds: SimilarCompound[] = [];
+          const realData = run.realSequences[layer];
+          if (layer === "small_molecule" && realData?.canonicalSmiles) {
+            similarKnownCompounds = await fetchChEMBLSimilarity(
+              realData.canonicalSmiles,
+              70
+            );
+          }
+
+          const recommendation: PatentRecommendation = derivePatentRecommendation(
+            ftoStatus,
+            broadClaimFamilies
+          );
+
+          let patentClearScore = 100;
+          if (ftoStatus === "BLOCKED") patentClearScore = 0;
+          else if (ftoStatus === "RISK") patentClearScore -= 40;
+          else if (ftoStatus === "UNKNOWN") patentClearScore -= 20;
+          const highRiskFamilies = broadClaimFamilies.filter((f) => f.riskLevel === "high");
+          const mediumRiskFamilies = broadClaimFamilies.filter((f) => f.riskLevel === "medium");
+          patentClearScore -= highRiskFamilies.length * 25;
+          patentClearScore -= mediumRiskFamilies.length * 10;
+          patentClearScore -= Math.min(similarKnownCompounds.length * 5, 20);
+          patentClearScore = Math.max(0, Math.min(100, patentClearScore));
+
+          return {
+            layer,
+            ftoStatus,
+            blockingPatents: blockingPatents.slice(0, 5),
+            broadClaimFamilies: broadClaimFamilies.map((f) => ({
+              name: f.name,
+              leadPatent: f.leadPatent,
+              assignee: f.assignee,
+              leadPatentExpiry: f.leadPatentExpiry,
+              claimScope: f.claimScope,
+              riskLevel: f.riskLevel,
+            })),
+            similarKnownCompounds,
+            patentClearScore,
+            recommendation,
+          };
+        })
+      );
+
+      const RECOMMENDATION_ORDER: PatentRecommendation[] = [
+        "do-not-file",
+        "fto-analysis-required",
+        "proceed-with-caution",
+        "proceed",
+      ];
+      const overallRecommendation = layerVerdicts.reduce<PatentRecommendation>(
+        (worst, v) => {
+          const wi = RECOMMENDATION_ORDER.indexOf(worst);
+          const vi = RECOMMENDATION_ORDER.indexOf(v.recommendation);
+          return vi < wi ? v.recommendation : worst;
+        },
+        "proceed"
+      );
+
+      return {
+        runId: run.runId,
+        target: run.target,
+        therapeuticArea,
+        overallRecommendation,
+        nearestPatentExpiration: run.patentLandscape.nearestExpiration ?? null,
+        totalBlockingPatents: run.patentLandscape.totalBlockingPatents,
+        layerVerdicts,
       };
     }),
 });

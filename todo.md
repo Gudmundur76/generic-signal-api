@@ -144,3 +144,18 @@
 - [x] Test 7: runAutonomousDistributionLoop with mock signals → correct LoopResult counts
 - [x] Test 8: createApprovalRequest + getPendingApprovals + approveRequest full flow
 - [x] 0 TypeScript errors, 113 tests passing (13 test files, 2 skipped)
+
+## Patent Clear Path Assessment — Sprint 10
+
+- [x] Extend fetchChEMBLBioactivity to also return canonicalSmiles
+- [x] Add fetchChEMBLSimilarity(smiles, threshold) using ChEMBL similarity search endpoint
+- [x] Create server/lib/broadClaimFamilies.ts with BROAD_CLAIM_FAMILIES registry per therapeutic area
+- [x] Add design.getPatentClearance tRPC procedure (per-layer verdict: ftoStatus, blockingPatents, similarKnownCompounds, broadClaimRisk, patentClearScore, recommendation)
+- [x] Add Patent Clearance tab to DesignTarget.tsx (traffic-light badge, blocking patents table, similar compounds, broad-claim warning)
+- [x] Test 1: fetchChEMBLBioactivity returns canonicalSmiles for PCSK9
+- [x] Test 2: fetchChEMBLSimilarity returns array of similar compounds or empty array on no match
+- [x] Test 3: getPatentClearance returns verdict for each layer in a run
+- [x] Test 4: CLEAR ftoStatus + no broad-claim risk → recommendation is "proceed"
+- [x] Test 5: BLOCKED ftoStatus → recommendation is "do not file"
+- [x] Test 6: broad-claim family match → recommendation is "fto-analysis-required"
+- [x] 0 TypeScript errors, 126 tests passing (14 test files, 2 skipped)

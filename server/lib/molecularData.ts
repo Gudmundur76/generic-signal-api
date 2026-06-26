@@ -12,6 +12,15 @@ export interface MolecularData {
   confidence: number;
   structureUrl?: string;
   bioactivity?: { ic50?: number; ki?: number; pIC50?: number };
+  canonicalSmiles?: string;
+}
+
+export interface SimilarCompound {
+  chemblId: string;
+  similarity: number;
+  canonicalSmiles: string;
+  pref_name: string | null;
+  maxPhase: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -137,10 +146,30 @@ export async function fetchChEMBLBioactivity(gene: string): Promise<MolecularDat
 
     const ic50 = best?.standard_value ? parseFloat(best.standard_value) : undefined;
 
+    // Fetch canonical SMILES for the best-activity molecule
+    let canonicalSmiles: string | undefined;
+    if (best?.molecule_chembl_id) {
+      try {
+        const molRes = await fetch(
+          `https://www.ebi.ac.uk/chembl/api/data/molecule/${best.molecule_chembl_id}.json`,
+          { signal: AbortSignal.timeout(8000) }
+        );
+        if (molRes.ok) {
+          const molData = await molRes.json() as {
+            molecule_structures?: { canonical_smiles?: string };
+          };
+          canonicalSmiles = molData.molecule_structures?.canonical_smiles ?? undefined;
+        }
+      } catch {
+        // non-fatal — SMILES is optional
+      }
+    }
+
     return {
       sequence: target.pref_name ?? gene,
       source: `chembl:${target.target_chembl_id}`,
       confidence: best ? 0.85 : 0.6,
+      canonicalSmiles,
       bioactivity: ic50
         ? {
             ic50,
@@ -150,6 +179,44 @@ export async function fetchChEMBLBioactivity(gene: string): Promise<MolecularDat
     };
   } catch {
     return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ChEMBL: structural similarity search (Tanimoto ≥ threshold)
+// Returns up to 5 similar known compounds with their SMILES and max clinical phase
+// ---------------------------------------------------------------------------
+
+export async function fetchChEMBLSimilarity(
+  smiles: string,
+  threshold = 70
+): Promise<SimilarCompound[]> {
+  if (!smiles || smiles.length < 5) return [];
+  try {
+    const encoded = encodeURIComponent(smiles);
+    const res = await fetch(
+      `https://www.ebi.ac.uk/chembl/api/data/similarity/${encoded}/${threshold}.json?limit=5`,
+      { signal: AbortSignal.timeout(12000) }
+    );
+    if (!res.ok) return [];
+    const data = await res.json() as {
+      molecules?: Array<{
+        molecule_chembl_id?: string;
+        similarity?: number;
+        molecule_structures?: { canonical_smiles?: string };
+        pref_name?: string | null;
+        max_phase?: number | null;
+      }>;
+    };
+    return (data.molecules ?? []).map((m) => ({
+      chemblId: m.molecule_chembl_id ?? "unknown",
+      similarity: m.similarity ?? threshold,
+      canonicalSmiles: m.molecule_structures?.canonical_smiles ?? "",
+      pref_name: m.pref_name ?? null,
+      maxPhase: m.max_phase ?? null,
+    }));
+  } catch {
+    return [];
   }
 }
 

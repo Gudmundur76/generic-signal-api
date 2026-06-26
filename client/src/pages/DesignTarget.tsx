@@ -20,6 +20,10 @@ import {
   AlertCircle,
   HelpCircle,
   Loader2,
+  ShieldCheck,
+  ShieldAlert,
+  ShieldX,
+  Shield,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -79,6 +83,233 @@ function genscriptUrl(sequence: string, layer: string): string {
     return `https://www.genscript.com/custom-peptide-synthesis.html?smiles=${encoded}`;
   }
   return `https://www.genscript.com/protein-expression.html?sequence=${encoded}`;
+}
+
+// ---------------------------------------------------------------------------
+// Patent Clearance sub-component
+// ---------------------------------------------------------------------------
+
+const RECOMMENDATION_CONFIG = {
+  proceed: {
+    label: "Proceed",
+    color: "bg-green-100 text-green-800 border-green-300",
+    icon: <ShieldCheck className="w-4 h-4 text-green-700" />,
+    description: "No blocking patents or broad-claim families identified. Safe to file.",
+  },
+  "proceed-with-caution": {
+    label: "Proceed with Caution",
+    color: "bg-yellow-100 text-yellow-800 border-yellow-300",
+    icon: <ShieldAlert className="w-4 h-4 text-yellow-700" />,
+    description: "Medium-risk broad-claim families identified. Recommend FTO opinion before filing.",
+  },
+  "fto-analysis-required": {
+    label: "FTO Analysis Required",
+    color: "bg-orange-100 text-orange-800 border-orange-300",
+    icon: <ShieldAlert className="w-4 h-4 text-orange-700" />,
+    description: "High-risk broad-claim families or RISK FTO status. Full freedom-to-operate analysis required.",
+  },
+  "do-not-file": {
+    label: "Do Not File",
+    color: "bg-red-100 text-red-800 border-red-300",
+    icon: <ShieldX className="w-4 h-4 text-red-700" />,
+    description: "BLOCKED FTO status. Filing would infringe active patents.",
+  },
+} as const;
+
+function PatentClearancePanel({ runId }: { runId: string }) {
+  const { data, isLoading, error } = trpc.design.getPatentClearance.useQuery(
+    { runId },
+    { enabled: !!runId }
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 py-8 text-xs font-mono text-gray-400">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Running patent clearance analysis…
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="py-8 text-xs font-mono text-red-600">
+        Patent clearance analysis unavailable.
+      </div>
+    );
+  }
+
+  const overallCfg = RECOMMENDATION_CONFIG[data.overallRecommendation];
+
+  return (
+    <div className="space-y-6">
+      {/* Overall verdict */}
+      <div className={`border p-5 rounded-none ${overallCfg.color}`}>
+        <div className="flex items-center gap-3 mb-2">
+          {overallCfg.icon}
+          <span className="text-sm font-black uppercase tracking-widest">
+            {overallCfg.label}
+          </span>
+          <span className="ml-auto text-xs font-mono">
+            {data.target} · {data.therapeuticArea}
+          </span>
+        </div>
+        <p className="text-xs leading-relaxed">{overallCfg.description}</p>
+        {data.nearestPatentExpiration && (
+          <div className="mt-2 text-xs font-mono">
+            Nearest expiry:{" "}
+            <span className="font-bold">
+              {new Date(data.nearestPatentExpiration).toLocaleDateString()}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Per-layer verdicts */}
+      <div className="space-y-4">
+        {data.layerVerdicts.map((v) => {
+          const cfg = RECOMMENDATION_CONFIG[v.recommendation];
+          return (
+            <div key={v.layer} className="border border-gray-200 p-4 rounded-none">
+              {/* Layer header */}
+              <div className="flex items-center gap-2 mb-3">
+                <div className="text-gray-600">{LAYER_ICONS[v.layer]}</div>
+                <span className="font-bold text-sm text-black">
+                  {LAYER_LABELS[v.layer]}
+                </span>
+                <span className={`ml-auto text-xs font-mono font-bold px-2 py-0.5 border rounded-none ${cfg.color}`}>
+                  {cfg.label}
+                </span>
+              </div>
+
+              {/* Patent clear score */}
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">
+                    Patent Clear Score
+                  </span>
+                  <span className="text-xs font-bold font-mono">{v.patentClearScore}/100</span>
+                </div>
+                <div className="h-2 bg-gray-100 rounded-none overflow-hidden">
+                  <div
+                    className={`h-full transition-all ${
+                      v.patentClearScore >= 70
+                        ? "bg-green-500"
+                        : v.patentClearScore >= 40
+                        ? "bg-yellow-500"
+                        : "bg-red-500"
+                    }`}
+                    style={{ width: `${v.patentClearScore}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Broad-claim families */}
+              {v.broadClaimFamilies.length > 0 && (
+                <div className="mb-3">
+                  <div className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-2">
+                    Broad-Claim Patent Families
+                  </div>
+                  <div className="space-y-2">
+                    {v.broadClaimFamilies.map((f, i) => (
+                      <div
+                        key={i}
+                        className={`p-2.5 border text-xs ${
+                          f.riskLevel === "high"
+                            ? "border-red-200 bg-red-50"
+                            : "border-yellow-200 bg-yellow-50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-bold">{f.name}</span>
+                          <span
+                            className={`font-mono px-1.5 py-0.5 border text-xs uppercase ${
+                              f.riskLevel === "high"
+                                ? "border-red-300 text-red-700 bg-red-100"
+                                : "border-yellow-300 text-yellow-700 bg-yellow-100"
+                            }`}
+                          >
+                            {f.riskLevel} risk
+                          </span>
+                        </div>
+                        <div className="font-mono text-gray-600 mb-1">
+                          {f.leadPatent} · {f.assignee} · expires{" "}
+                          {new Date(f.leadPatentExpiry).toLocaleDateString()}
+                        </div>
+                        <div className="text-gray-600 leading-relaxed">{f.claimScope}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Similar known compounds */}
+              {v.similarKnownCompounds.length > 0 && (
+                <div className="mb-3">
+                  <div className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-2">
+                    Similar Known Compounds (Tanimoto ≥ 70%)
+                  </div>
+                  <div className="space-y-1">
+                    {v.similarKnownCompounds.map((c, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-3 p-2 border border-gray-200 text-xs font-mono"
+                      >
+                        <a
+                          href={`https://www.ebi.ac.uk/chembl/compound_report_card/${c.chemblId}/`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-700 hover:underline flex items-center gap-1"
+                        >
+                          {c.chemblId}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                        <span className="text-gray-500">
+                          {c.pref_name ?? "unnamed"}
+                        </span>
+                        <span className="ml-auto text-gray-400">
+                          similarity: {c.similarity.toFixed(0)}%
+                          {c.maxPhase != null && ` · Phase ${c.maxPhase}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Blocking patents from Notus */}
+              {v.blockingPatents.length > 0 && (
+                <div>
+                  <div className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-2">
+                    Blocking Patents (Notus Index)
+                  </div>
+                  <div className="space-y-1">
+                    {v.blockingPatents.map((p, i) => (
+                      <div
+                        key={i}
+                        className="text-xs font-mono p-2 border border-gray-200 text-gray-700"
+                      >
+                        {typeof p === "string" ? p : `${(p as any).patentNumber ?? ""} — ${(p as any).title ?? ""} (${(p as any).assignee ?? ""})`}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {v.broadClaimFamilies.length === 0 &&
+                v.similarKnownCompounds.length === 0 &&
+                v.blockingPatents.length === 0 && (
+                  <div className="text-xs font-mono text-green-700 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    No blocking patents, broad-claim families, or similar compounds identified.
+                  </div>
+                )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -319,6 +550,7 @@ export default function DesignTarget() {
 
   const [runId, setRunId] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
+  const [activeTab, setActiveTab] = useState<"results" | "patent">("results");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const evolveMutation = trpc.design.evolve.useMutation({
@@ -486,31 +718,71 @@ export default function DesignTarget() {
         {/* Results */}
         {results && results.layers.length > 0 && (
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-xl font-black text-black">Evolution Results</h2>
-                <div className="text-xs font-mono text-gray-500 mt-0.5">
-                  Cross-layer coherence:{" "}
-                  <span className="font-bold text-black">{results.coherence}%</span>
-                  {" · "}
-                  Recommended:{" "}
-                  <span className="font-bold text-black">
-                    {LAYER_LABELS[results.recommendedLayer]}
-                  </span>
-                </div>
-              </div>
+            {/* Tab bar */}
+            <div className="flex items-center gap-0 border-b border-black mb-6">
+              <button
+                onClick={() => setActiveTab("results")}
+                className={`px-5 py-2.5 text-xs font-mono uppercase tracking-widest transition-colors ${
+                  activeTab === "results"
+                    ? "bg-black text-white"
+                    : "bg-white text-gray-500 hover:text-black border-r border-gray-200"
+                }`}
+              >
+                Evolution Results
+              </button>
+              <button
+                onClick={() => setActiveTab("patent")}
+                className={`px-5 py-2.5 text-xs font-mono uppercase tracking-widest transition-colors flex items-center gap-1.5 ${
+                  activeTab === "patent"
+                    ? "bg-black text-white"
+                    : "bg-white text-gray-500 hover:text-black"
+                }`}
+              >
+                <Shield className="w-3 h-3" />
+                Patent Clearance
+              </button>
             </div>
 
-            <div className="space-y-4">
-              {results.layers.map((layer) => (
-                <LayerCard
-                  key={layer.layer}
-                  result={layer}
-                  runId={results.runId}
-                  isRecommended={layer.layer === results.recommendedLayer}
-                />
-              ))}
-            </div>
+            {activeTab === "results" && (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-xl font-black text-black">Evolution Results</h2>
+                    <div className="text-xs font-mono text-gray-500 mt-0.5">
+                      Cross-layer coherence:{" "}
+                      <span className="font-bold text-black">{results.coherence}%</span>
+                      {" · "}
+                      Recommended:{" "}
+                      <span className="font-bold text-black">
+                        {LAYER_LABELS[results.recommendedLayer]}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {results.layers.map((layer) => (
+                    <LayerCard
+                      key={layer.layer}
+                      result={layer}
+                      runId={results.runId}
+                      isRecommended={layer.layer === results.recommendedLayer}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {activeTab === "patent" && (
+              <>
+                <div className="mb-4">
+                  <h2 className="text-xl font-black text-black">Patent Clear Path Assessment</h2>
+                  <div className="text-xs font-mono text-gray-500 mt-0.5">
+                    Notus FTO · Broad-claim family registry · ChEMBL Tanimoto similarity
+                  </div>
+                </div>
+                <PatentClearancePanel runId={results.runId} />
+              </>
+            )}
           </div>
         )}
 
