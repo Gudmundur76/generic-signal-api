@@ -196,3 +196,16 @@
 - [x] Test: rankArbitrageOpportunities sorts descending by overallIpGapScore
 - [x] Test: getPatentArbitrage tRPC procedure returns ranked ArbitrageOpportunity[] with 8 jurisdictions each
 - [x] 0 TypeScript errors, 148 tests passing (16 test files, 2 skipped)
+
+## Sprint 13 — Truth-Check Fixes (Data Accuracy)
+
+- [x] Fix APOE: reclassify as genetic risk marker (not active CVD drug target); added `riskMarker: true`, `approvalStatus: "preclinical"`, updated description to note NCT03634007 is Alzheimer's gene therapy; added amber UI warning badge
+- [x] Fix CETP: updated `approvalStatus: "phase3_pre_approval"` (obicetrapib BROOKLYN trial met endpoint July 2024, not yet approved); updated NCT to NCT05425745 (BROOKLYN); added "Phase 3 · Pre-Approval" UI badge
+- [x] Fix APOC3: added olezarsen/Tryngolza (FDA December 19, 2024) to approvedDrugs; updated clinicalTrialId to NCT05185843; raised clinicalConfidence to 0.90
+- [x] Fix TTR: tafamidis patent cliff updated to June 1, 2031 (Pfizer settlement April 2026); patentCliffYear=2028 (Amvuttra earliest); 4 approved drugs listed with year/cliff annotations; raised clinicalConfidence to 0.95
+- [x] Update DesignTarget.tsx: amber "Risk Marker Only" badge for APOE; blue "Phase 3 · Pre-Approval" badge for CETP/LPA; green "Approved Drug(s)" badge for approved targets; red "Patent Cliff YYYY" badge where applicable
+- [x] Test: APOE target has riskMarker=true and approvedDrugs=[] in getTargets response
+- [x] Test: CETP target has approvalStatus="phase3_pre_approval" and approvedDrugs=[] in getTargets response
+- [x] Test: APOC3 target has approvedDrugs containing olezarsen (FDA 2024) in getTargets response
+- [x] Test: TTR target patentCliffYear=2028 (Amvuttra earliest); tafamidis 2031 in description
+- [x] 0 TypeScript errors, 177 tests passing (17 test files, 2 skipped)

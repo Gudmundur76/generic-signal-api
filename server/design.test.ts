@@ -65,7 +65,8 @@ describe("design.getTargets", () => {
     const pcsk9 = targets.find((t) => t.name === "PCSK9");
     expect(pcsk9?.deCODEAssociations).toBe(8);
     expect(pcsk9?.pValue).toBe(2e-48);
-    expect(pcsk9?.approvedDrugs).toContain("Evolocumab");
+    // approvedDrugs now include year/agency annotations, e.g. "Evolocumab (FDA 2015)"
+    expect(pcsk9?.approvedDrugs.some((d: string) => d.toLowerCase().includes("evolocumab"))).toBe(true);
   });
 });
 

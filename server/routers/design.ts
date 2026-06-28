@@ -80,6 +80,25 @@ export interface EvolutionRun {
 // Static target catalogue (v1 — hardcoded, backed by deCODE data)
 // ---------------------------------------------------------------------------
 
+/**
+ * Extended target metadata with accuracy-verified fields.
+ *
+ * riskMarker: true  → the gene is a validated genetic risk factor but NOT an
+ *   active drug target in the indicated disease (e.g. APOE in CVD).
+ *   The UI should surface an amber warning badge.
+ *
+ * approvalStatus: describes the regulatory maturity of drugs targeting this gene.
+ *   "approved"            → ≥1 FDA/EMA-approved drug exists
+ *   "phase3_pre_approval" → lead programme in Phase 3, no approval yet
+ *   "preclinical"         → no clinical-stage programme
+ *
+ * patentCliffYear: the earliest year a major approved drug loses exclusivity
+ *   (undefined when no approved drug exists or cliff is post-2035).
+ *
+ * approvedDrugs: list of approved drugs with year and agency, e.g.
+ *   "Evolocumab (FDA 2015)"
+ */
+
 const TARGETS = [
   {
     name: "PCSK9",
@@ -90,7 +109,10 @@ const TARGETS = [
     pValue: 2e-48,
     description:
       "Proprotein convertase subtilisin/kexin type 9 — regulates LDL receptor degradation. Loss-of-function variants in deCODE cohort strongly associate with reduced LDL-C and cardiovascular protection.",
-    approvedDrugs: ["Evolocumab", "Alirocumab"],
+    approvedDrugs: ["Evolocumab (FDA 2015)", "Alirocumab (FDA 2015)", "Inclisiran (FDA 2021)"],
+    approvalStatus: "approved" as const,
+    patentCliffYear: 2027, // Alirocumab data exclusivity ~July 2027; Evolocumab US patents ~2030
+    riskMarker: false,
     layers: ["dna", "small_molecule", "protein", "rna"] as MolecularLayer[],
   },
   {
@@ -103,6 +125,9 @@ const TARGETS = [
     description:
       "Lipoprotein(a) — elevated Lp(a) is a causal risk factor for atherosclerosis. deCODE identified multiple pQTLs with large effect sizes on Lp(a) plasma levels.",
     approvedDrugs: [],
+    approvalStatus: "phase3_pre_approval" as const, // Olpasiran (Phase 3 OCEAN(a)-OUTCOMES NCT05581303), Pelacarsen (Phase 3 HORIZON NCT04023552)
+    patentCliffYear: undefined, // No approved drug yet — first-mover opportunity
+    riskMarker: false,
     layers: ["dna", "small_molecule", "rna"] as MolecularLayer[],
   },
   {
@@ -113,8 +138,11 @@ const TARGETS = [
     deCODEAssociations: 12,
     pValue: 5e-61,
     description:
-      "Apolipoprotein E — APOE ε4 allele is the strongest genetic risk factor for late-onset Alzheimer's. deCODE data shows 12 independent associations across neurological and metabolic phenotypes.",
-    approvedDrugs: [],
+      "Apolipoprotein E — APOE ε4 allele is the strongest genetic risk factor for late-onset Alzheimer's and a secondary CVD risk modifier. deCODE data shows 12 independent associations across neurological and metabolic phenotypes. NOTE: No approved cardiovascular drug targets APOE directly; active trials (NCT03634007) focus on Alzheimer's gene therapy, not CVD.",
+    approvedDrugs: [], // No approved CVD drug targets APOE — riskMarker only
+    approvalStatus: "preclinical" as const, // No CVD drug programme; Alzheimer's gene therapy in Phase 1/2
+    patentCliffYear: undefined,
+    riskMarker: true, // APOE is a genetic risk marker for CVD, not an active CVD drug target
     layers: ["dna", "protein", "rna"] as MolecularLayer[],
   },
   {
@@ -126,7 +154,10 @@ const TARGETS = [
     pValue: 3.1e-31,
     description:
       "Angiopoietin-like protein 3 — loss-of-function variants cause familial combined hypolipidaemia. deCODE pQTLs show large effect on triglycerides and LDL-C. Evinacumab (anti-ANGPTL3) approved 2021.",
-    approvedDrugs: ["Evinacumab"],
+    approvedDrugs: ["Evinacumab (FDA 2021)"], // Evkeeza — approved for HoFH; biosimilar entry earliest ~2033
+    approvalStatus: "approved" as const,
+    patentCliffYear: undefined, // Biologic 12-yr exclusivity from 2021 → no cliff before 2033
+    riskMarker: false,
     layers: ["small_molecule", "protein", "rna"] as MolecularLayer[],
   },
   {
@@ -137,8 +168,11 @@ const TARGETS = [
     deCODEAssociations: 4,
     pValue: 1.4e-15,
     description:
-      "Cholesteryl ester transfer protein — inhibition raises HDL-C. deCODE variants associate with HDL/LDL ratio and CAD risk. Multiple CETP inhibitor programmes in late-stage development.",
-    approvedDrugs: [],
+      "Cholesteryl ester transfer protein — inhibition raises HDL-C. deCODE variants associate with HDL/LDL ratio and CAD risk. Obicetrapib (NewAmsterdam Pharma) met primary endpoint in Phase 3 BROOKLYN trial (NCT05425745, July 2024, 36.3% LDL-C reduction) — regulatory submission pending. No CETP inhibitor is currently approved.",
+    approvedDrugs: [], // No approved CETP drug as of June 2026; obicetrapib Phase 3 complete, submission pending
+    approvalStatus: "phase3_pre_approval" as const, // Obicetrapib BROOKLYN trial met endpoint July 2024
+    patentCliffYear: undefined, // Obicetrapib patent ~2043 — no near-term cliff
+    riskMarker: false,
     layers: ["small_molecule", "protein"] as MolecularLayer[],
   },
   {
@@ -150,7 +184,10 @@ const TARGETS = [
     pValue: 2.8e-24,
     description:
       "HMG-CoA reductase — the canonical statin target. deCODE loss-of-function variants phenocopy statin treatment, validating LDL-C lowering as causal for CVD protection.",
-    approvedDrugs: ["Atorvastatin", "Rosuvastatin", "Simvastatin"],
+    approvedDrugs: ["Atorvastatin (generic 2011)", "Rosuvastatin (generic 2016)", "Simvastatin (generic 2006)", "Pravastatin (generic 2006)"],
+    approvalStatus: "approved" as const,
+    patentCliffYear: undefined, // All statin patents expired 2006–2016 — post-cliff, generic-dominated target
+    riskMarker: false,
     layers: ["small_molecule", "dna"] as MolecularLayer[],
   },
   {
@@ -161,8 +198,11 @@ const TARGETS = [
     deCODEAssociations: 9,
     pValue: 7.5e-42,
     description:
-      "Apolipoprotein C-III — inhibits lipoprotein lipase and hepatic uptake of TG-rich lipoproteins. deCODE loss-of-function carriers have markedly reduced TG and CVD risk. Volanesorsen (siRNA) approved for FCS.",
-    approvedDrugs: ["Volanesorsen"],
+      "Apolipoprotein C-III — inhibits lipoprotein lipase and hepatic uptake of TG-rich lipoproteins. deCODE loss-of-function carriers have markedly reduced TG and CVD risk. Volanesorsen (EMA 2019) and olezarsen/Tryngolza (FDA December 19, 2024) are approved ASO therapies for familial chylomicronaemia syndrome.",
+    approvedDrugs: ["Volanesorsen (EMA 2019)", "Olezarsen/Tryngolza (FDA 2024)"], // Olezarsen FDA approval Dec 19, 2024
+    approvalStatus: "approved" as const,
+    patentCliffYear: undefined, // Both ASOs have patents well past 2030
+    riskMarker: false,
     layers: ["rna", "small_molecule", "protein"] as MolecularLayer[],
   },
   {
@@ -173,8 +213,12 @@ const TARGETS = [
     deCODEAssociations: 3,
     pValue: 1.1e-18,
     description:
-      "Transthyretin — misfolding and aggregation causes cardiac and peripheral amyloidosis. deCODE identified pathogenic Val122Ile and Val30Met variants. Patisiran (siRNA) and tafamidis (stabiliser) approved.",
-    approvedDrugs: ["Patisiran", "Vutrisiran", "Tafamidis"],
+      "Transthyretin — misfolding and aggregation causes cardiac and peripheral amyloidosis. deCODE identified pathogenic Val122Ile and Val30Met variants. Four approved therapies: tafamidis (Vyndamax, Pfizer — stabiliser; patent extended to June 1, 2031 via April 2026 settlement), patisiran (Onpattro, Alnylam — siRNA; generic entry ~2029), vutrisiran (Amvuttra — siRNA; patent ~2028), inotersen (Tegsedi — ASO; approved 2018).",
+    approvedDrugs: ["Tafamidis/Vyndamax (FDA 2019, patent cliff June 2031)", "Patisiran/Onpattro (FDA 2018, patent cliff ~2029)", "Vutrisiran/Amvuttra (FDA 2022, patent cliff ~2028)", "Inotersen/Tegsedi (FDA 2018)"],
+    approvalStatus: "approved" as const,
+    patentCliffYear: 2028, // Vutrisiran (Amvuttra) patent ~Aug 2028 is the earliest cliff; Onpattro ~2029; tafamidis extended to 2031
+    tafamidisPatentCliffYear: 2031, // Pfizer settlement April 2026 extends tafamidis (Vyndamax) to June 1, 2031
+    riskMarker: false,
     layers: ["rna", "small_molecule", "protein"] as MolecularLayer[],
   },
 ];
@@ -338,8 +382,8 @@ const TARGET_EVIDENCE: Record<string, {
     pqtlPMIDs: ["29892016", "30617256"],
     gwasPMID: "29892016",
     pdbId: "1GS9",                      // APOE3 N-terminal domain
-    clinicalTrialId: "NCT03634007",     // ADCS APOE4 trial
-    clinicalConfidence: 0.72,
+    clinicalTrialId: "NCT03634007",     // ADCS APOE4 gene therapy trial — NOTE: Alzheimer's, not CVD
+    clinicalConfidence: 0.55,           // Lowered from 0.72 — no active CVD drug programme; riskMarker only
   },
   ANGPTL3: {
     // Stitziel 2017 (NEJM), Dewey 2017 (NEJM), Musunuru 2010 (NEJM)
@@ -354,7 +398,7 @@ const TARGET_EVIDENCE: Record<string, {
     pqtlPMIDs: ["23882279", "22607825", "16881795"],
     gwasPMID: "23882279",
     pdbId: "2OBD",                      // CETP crystal structure
-    clinicalTrialId: "NCT02545592",     // REVEAL trial (anacetrapib)
+    clinicalTrialId: "NCT05425745",     // BROOKLYN Phase 3 trial (obicetrapib) — met primary endpoint July 2024
     clinicalConfidence: 0.81,
   },
   HMGCR: {
@@ -370,16 +414,16 @@ const TARGET_EVIDENCE: Record<string, {
     pqtlPMIDs: ["24941082", "23731811", "21441125"],
     gwasPMID: "24941082",
     pdbId: "1AI0",                      // APOC3 NMR structure
-    clinicalTrialId: "NCT03385239",     // APPROACH trial (volanesorsen)
-    clinicalConfidence: 0.85,
+    clinicalTrialId: "NCT05185843",     // Olezarsen open-label safety study (FDA approved Dec 2024)
+    clinicalConfidence: 0.90,           // Raised from 0.85 — olezarsen now FDA approved
   },
   TTR: {
     // Adams 2018 (NEJM), Coelho 2013 (NEJM), Berk 2013 (Lancet)
     pqtlPMIDs: ["28657829", "28538115", "25475028"],
     gwasPMID: "28657829",
     pdbId: "1F41",                      // TTR tetramer with T4 ligand
-    clinicalTrialId: "NCT04136119",     // HELIOS-A trial (vutrisiran)
-    clinicalConfidence: 0.93,
+    clinicalTrialId: "NCT04136119",     // HELIOS-A trial (vutrisiran, FDA approved 2022)
+    clinicalConfidence: 0.95,           // Raised from 0.93 — 4 approved drugs; tafamidis cliff now June 2031 (Pfizer settlement April 2026)
   },
 };
 

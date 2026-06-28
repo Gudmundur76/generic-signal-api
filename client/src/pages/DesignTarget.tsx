@@ -959,8 +959,36 @@ export default function DesignTarget() {
               <h1 className="text-5xl font-black tracking-tight text-black leading-none">
                 {targetName}
               </h1>
+              {/* Accuracy badges — sourced from truth-checked TARGETS catalogue */}
               {target && (
-                <p className="mt-2 text-sm text-gray-600 max-w-2xl leading-relaxed">
+                <div className="flex flex-wrap items-center gap-2 mt-2 mb-2">
+                  {/* riskMarker: gene is a CVD risk factor but not an active drug target */}
+                  {(target as any).riskMarker && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono font-bold uppercase tracking-wide bg-amber-100 text-amber-800 border border-amber-400">
+                      ⚠ Risk Marker Only — No Active CVD Drug Programme
+                    </span>
+                  )}
+                  {/* approvalStatus badge */}
+                  {(target as any).approvalStatus === "phase3_pre_approval" && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono font-bold uppercase tracking-wide bg-blue-50 text-blue-700 border border-blue-300">
+                      Phase 3 · Pre-Approval
+                    </span>
+                  )}
+                  {(target as any).approvalStatus === "approved" && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono font-bold uppercase tracking-wide bg-green-50 text-green-700 border border-green-300">
+                      ✓ Approved Drug(s)
+                    </span>
+                  )}
+                  {/* patentCliffYear badge */}
+                  {(target as any).patentCliffYear && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono font-bold uppercase tracking-wide bg-red-50 text-red-700 border border-red-300">
+                      Patent Cliff {(target as any).patentCliffYear}
+                    </span>
+                  )}
+                </div>
+              )}
+              {target && (
+                <p className="mt-1 text-sm text-gray-600 max-w-2xl leading-relaxed">
                   {target.description}
                 </p>
               )}
