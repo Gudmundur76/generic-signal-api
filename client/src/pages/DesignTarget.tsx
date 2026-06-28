@@ -24,6 +24,7 @@ import {
   ShieldAlert,
   ShieldX,
   Shield,
+  TrendingUp,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -523,6 +524,136 @@ function FilingReadinessPanel({ runId }: { runId: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Patent Arbitrage sub-component
+// ---------------------------------------------------------------------------
+
+const ARBITRAGE_CONFIG: Record<
+  "FILE_NOW" | "MONITOR" | "AVOID" | "DEFENSIVE_PUBLICATION",
+  { label: string; color: string; bg: string }
+> = {
+  FILE_NOW:              { label: "File Now",             color: "text-green-800",  bg: "bg-green-100 border-green-300" },
+  MONITOR:               { label: "Monitor",              color: "text-yellow-800", bg: "bg-yellow-100 border-yellow-300" },
+  DEFENSIVE_PUBLICATION: { label: "Defensive Pub.",       color: "text-blue-800",   bg: "bg-blue-100 border-blue-300" },
+  AVOID:                 { label: "Avoid",                color: "text-red-800",    bg: "bg-red-100 border-red-300" },
+};
+
+function PatentArbitragePanel({ runId }: { runId: string }) {
+  const { data, isLoading, error } = trpc.design.getPatentArbitrage.useQuery(
+    { runId },
+    { enabled: !!runId }
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 py-8 text-xs font-mono text-gray-400">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Analysing patent arbitrage opportunities…
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="py-8 text-xs font-mono text-red-600">
+        Patent arbitrage analysis unavailable.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="mb-4">
+        <h2 className="text-xl font-black text-black">Patent Arbitrage</h2>
+        <div className="text-xs font-mono text-gray-500 mt-0.5">
+          Multi-jurisdiction IP gap analysis · US · EP · JP · CN · WO · CA · AU · IN
+        </div>
+      </div>
+
+      {data.length === 0 ? (
+        <div className="py-8 text-xs font-mono text-gray-400">
+          No arbitrage opportunities computed — run evolution first.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {data.map((opp) => {
+            const cfg = ARBITRAGE_CONFIG[opp.recommendation];
+            return (
+              <div key={opp.candidateId} className="border border-gray-200 p-4">
+                {/* Header row */}
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-black text-sm text-black">{opp.candidateName}</div>
+                    <div className="text-xs font-mono text-gray-500 mt-0.5">
+                      Filing window: {opp.estimatedFilingWindow}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-2xl font-black text-black">{opp.overallIpGapScore}</span>
+                    <span className="text-xs font-mono text-gray-400">/ 100</span>
+                    <span className={`text-xs font-mono px-2 py-1 border ${cfg.bg} ${cfg.color} uppercase tracking-wide`}>
+                      {cfg.label}
+                    </span>
+                  </div>
+                </div>
+
+                {/* High-opportunity jurisdictions */}
+                {opp.highOpportunityJurisdictions.length > 0 && (
+                  <div className="mb-3">
+                    <div className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-1">High-opportunity jurisdictions</div>
+                    <div className="flex flex-wrap gap-1">
+                      {opp.highOpportunityJurisdictions.map((j) => (
+                        <span key={j} className="text-xs font-mono px-2 py-0.5 bg-green-100 text-green-800 border border-green-300">
+                          {j}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Per-jurisdiction coverage table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs font-mono">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-1 pr-4 text-gray-500 font-normal">Jurisdiction</th>
+                        <th className="text-right py-1 pr-4 text-gray-500 font-normal">Patents</th>
+                        <th className="text-right py-1 pr-4 text-gray-500 font-normal">Coverage</th>
+                        <th className="text-right py-1 text-gray-500 font-normal">Gap</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {opp.coverageByJurisdiction.map((cov) => {
+                        const gap = 1 - cov.coverageScore;
+                        return (
+                          <tr key={cov.jurisdiction} className="border-b border-gray-100 last:border-0">
+                            <td className="py-1 pr-4 font-bold">{cov.jurisdiction}</td>
+                            <td className="py-1 pr-4 text-right">{cov.patentCount}</td>
+                            <td className="py-1 pr-4 text-right">
+                              <span className={cov.coverageScore >= 0.7 ? "text-red-700" : cov.coverageScore >= 0.4 ? "text-yellow-700" : "text-green-700"}>
+                                {(cov.coverageScore * 100).toFixed(0)}%
+                              </span>
+                            </td>
+                            <td className="py-1 text-right">
+                              <span className={gap >= 0.6 ? "text-green-700 font-bold" : "text-gray-500"}>
+                                {(gap * 100).toFixed(0)}%
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Evidence trail sub-component
 // ---------------------------------------------------------------------------
 
@@ -760,7 +891,7 @@ export default function DesignTarget() {
 
   const [runId, setRunId] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
-  const [activeTab, setActiveTab] = useState<"results" | "patent" | "uspto" | "filing">("results");
+  const [activeTab, setActiveTab] = useState<"results" | "patent" | "uspto" | "filing" | "arbitrage">("results");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const evolveMutation = trpc.design.evolve.useMutation({
@@ -967,11 +1098,22 @@ export default function DesignTarget() {
                 className={`px-5 py-2.5 text-xs font-mono uppercase tracking-widest transition-colors flex items-center gap-1.5 ${
                   activeTab === "filing"
                     ? "bg-black text-white"
-                    : "bg-white text-gray-500 hover:text-black"
+                    : "bg-white text-gray-500 hover:text-black border-r border-gray-200"
                 }`}
               >
                 <CheckCircle2 className="w-3 h-3" />
                 Filing Readiness
+              </button>
+              <button
+                onClick={() => setActiveTab("arbitrage")}
+                className={`px-5 py-2.5 text-xs font-mono uppercase tracking-widest transition-colors flex items-center gap-1.5 ${
+                  activeTab === "arbitrage"
+                    ? "bg-black text-white"
+                    : "bg-white text-gray-500 hover:text-black"
+                }`}
+              >
+                <TrendingUp className="w-3 h-3" />
+                Patent Arbitrage
               </button>
             </div>
 
@@ -1022,6 +1164,10 @@ export default function DesignTarget() {
 
             {activeTab === "filing" && (
               <FilingReadinessPanel runId={results.runId} />
+            )}
+
+            {activeTab === "arbitrage" && (
+              <PatentArbitragePanel runId={results.runId} />
             )}
           </div>
         )}

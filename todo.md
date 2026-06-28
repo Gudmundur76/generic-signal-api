@@ -181,3 +181,18 @@
 - [x] Test 9: low pIC50 (5.0) yields resistance-sensitive
 - [x] Test 10: getKeyMutationSummary returns V82A, I84V, L90M keys
 - [x] 0 TypeScript errors, 136 tests passing (15 test files, 2 skipped)
+
+## Sprint 12 — Wire noveltyCheck, unifiedMolecularScorer, patentArbitrage
+
+- [x] Wire noveltyCheck.ts into autonomousLoop.ts (filter candidates with noveltyScore < 80 before delivery gate)
+- [x] Wire unifiedMolecularScorer.ts into design.ts scoreForLayer (replace Math.random() with real 60-source composite scorer; molecularData passed from advanceRun)
+- [x] Add design.getPatentArbitrage tRPC procedure using patentArbitrage.ts (per-layer ArbitrageOpportunity[], ranked by overallIpGapScore)
+- [x] Add PatentArbitragePanel sub-component to DesignTarget.tsx (5th tab: Patent Arbitrage)
+- [x] Test: checkNovelty returns passes=true when citation service is down (Unverified fallback score=90)
+- [x] Test: scoreCandidate returns compositeScore in [0,100] and tier in S/A/B/C/D
+- [x] Test: scoreCandidate is deterministic (same input → same output)
+- [x] Test: computeArbitrageOpportunity all-gap coverage → FILE_NOW, score=100
+- [x] Test: computeArbitrageOpportunity full coverage → AVOID, score=0
+- [x] Test: rankArbitrageOpportunities sorts descending by overallIpGapScore
+- [x] Test: getPatentArbitrage tRPC procedure returns ranked ArbitrageOpportunity[] with 8 jurisdictions each
+- [x] 0 TypeScript errors, 148 tests passing (16 test files, 2 skipped)

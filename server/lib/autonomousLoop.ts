@@ -26,6 +26,7 @@ import {
 import { patentAlerts } from "../../drizzle/schema";
 import { gte, eq } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
+import { checkNovelty } from "./noveltyCheck";
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -145,6 +146,20 @@ export async function runAutonomousDistributionLoop(): Promise<LoopResult> {
           continue;
         }
         result.candidatesDesigned++;
+
+        // STEP 3b: NOVELTY CHECK — filter candidates with noveltyScore < 80
+        const topSeq = evolveResult.topCandidates[0]?.sequence ?? signal.gene;
+        const noveltyResult = await checkNovelty({
+          candidateId: `${signal.gene}_${Date.now()}`,
+          claim: `Novel molecular candidate targeting ${signal.gene} for ${getTherapeuticArea(signal.gene)} therapy`,
+          domain: getTherapeuticArea(signal.gene),
+        });
+        if (!noveltyResult.passes) {
+          console.log(`[autonomous] ${signal.gene} novelty score ${noveltyResult.noveltyScore} < 80 — skipping`);
+          result.errors.push(`${signal.gene}: novelty ${noveltyResult.noveltyScore} below threshold 80`);
+          continue;
+        }
+        console.log(`[autonomous] ${signal.gene} novelty score ${noveltyResult.noveltyScore} — passed`);
 
         // Check composite score
         const composite = evolveResult.qualityGate?.composite ?? 0;
