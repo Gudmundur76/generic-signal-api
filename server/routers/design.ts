@@ -828,8 +828,13 @@ export const designRouter = router({
       const smiles = smMolData?.canonicalSmiles ?? null;
 
       // Tanimoto novelty check (Tanimoto < 0.4 threshold)
-      let tanimotoNovel = false;
-      let tanimotoNote = "No SMILES available — cannot assess structural novelty";
+      // When no small_molecule layer was run, the run is sequence-based (DNA/protein/RNA).
+      // Tanimoto is not applicable to sequence modalities — mark as N/A (pass=true).
+      const hasSmallMolLayer = run.layers.includes("small_molecule");
+      let tanimotoNovel = !hasSmallMolLayer; // N/A for sequence-only runs → does not block
+      let tanimotoNote = hasSmallMolLayer
+        ? (smiles ? "Checking structural novelty..." : "SMILES unavailable for small_molecule layer — structural novelty cannot be assessed")
+        : "Sequence-based modality (DNA/protein/RNA) — Tanimoto check N/A";
       if (smiles) {
         const similar = await fetchChEMBLSimilarity(smiles, 40);
         tanimotoNovel = similar.length === 0;
@@ -849,7 +854,9 @@ export const designRouter = router({
       // pIC50 check
       const pIC50Pass = pIC50 !== null && pIC50 >= 8.0;
       const pIC50Note = pIC50 === null
-        ? "No pIC50 data — small_molecule layer not run"
+        ? (hasSmallMolLayer
+          ? "pIC50 unavailable — ChEMBL fetch incomplete; curated fallback may apply"
+          : "Sequence-based modality — pIC50 N/A (no small_molecule layer in this run)")
         : pIC50 >= 8.0
         ? `pIC50 ${pIC50.toFixed(2)} ≥ 8.0 — strong in-silico potency`
         : `pIC50 ${pIC50.toFixed(2)} < 8.0 — below patentability threshold`;

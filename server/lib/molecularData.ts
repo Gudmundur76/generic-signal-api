@@ -235,8 +235,25 @@ export async function fetchMolecularData(
       return fetchEnsemblCDS(gene);
     case "rna":
       return fetchEnsemblCDS(gene);
-    case "small_molecule":
-      return fetchChEMBLBioactivity(gene);
+    case "small_molecule": {
+      // Try ChEMBL first; fall back to curated SMILES from notusClient if
+      // ChEMBL is unavailable or returns no SMILES (common in sandbox environments).
+      const chembl = await fetchChEMBLBioactivity(gene);
+      if (chembl?.canonicalSmiles) return chembl;
+      // Fallback: use embedded curated SMILES + pIC50 from notusClient
+      const { FALLBACK_SMILES } = await import("./notusClient");
+      const fb = FALLBACK_SMILES[gene];
+      if (fb) {
+        return {
+          sequence: fb.name,
+          source: "curated:notusClient",
+          confidence: 0.75,
+          canonicalSmiles: fb.smiles,
+          bioactivity: { ic50: Math.pow(10, -(fb.pIC50 - 9)), pIC50: fb.pIC50 },
+        };
+      }
+      return chembl ?? null;
+    }
     default:
       return null;
   }

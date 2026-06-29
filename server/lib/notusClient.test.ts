@@ -1,31 +1,32 @@
 /**
  * notusClient.test.ts
- * 3 tests as specified. Uses real network calls (no mocks).
- * Each test has a 20s timeout to accommodate network latency.
- * The Notus patent index is currently empty, so PCSK9 returns UNKNOWN — this is correct behaviour.
+ * Tests for the embedded curated USPTO/EPO patent dataset (Sprint 14).
+ * No external API calls — all data is embedded in notusClient.ts.
  */
 import { describe, it, expect } from "vitest";
 import { fetchPatentLandscape } from "./notusClient";
 
 describe("notusClient", () => {
   it(
-    "Test 1: fetchPatentLandscape(PCSK9) returns { ftoStatus, patents, totalBlockingPatents }",
+    "Test 1: fetchPatentLandscape(PCSK9) returns BLOCKED with 4 active patents",
     async () => {
       const result = await fetchPatentLandscape("PCSK9");
       expect(result).toBeDefined();
-      expect(["CLEAR", "RISK", "BLOCKED", "UNKNOWN"]).toContain(result.ftoStatus);
+      // PCSK9 has 4 active blocking patents in the embedded dataset → BLOCKED
+      expect(result.ftoStatus).toBe("BLOCKED");
+      expect(result.totalBlockingPatents).toBe(4);
       expect(Array.isArray(result.patents)).toBe(true);
-      expect(typeof result.totalBlockingPatents).toBe("number");
-      expect(result.totalBlockingPatents).toBeGreaterThanOrEqual(0);
+      expect(result.patents.length).toBeGreaterThan(0);
     },
     20_000
   );
 
   it(
-    "Test 2: fetchPatentLandscape(FAKEGENE999) returns { ftoStatus: 'UNKNOWN', patents: [] }",
+    "Test 2: fetchPatentLandscape(FAKEGENE999) returns CLEAR (no patents = clear FTO)",
     async () => {
+      // Unknown genes have no patents in the embedded dataset → CLEAR FTO (not UNKNOWN)
       const result = await fetchPatentLandscape("FAKEGENE999");
-      expect(result.ftoStatus).toBe("UNKNOWN");
+      expect(result.ftoStatus).toBe("CLEAR");
       expect(result.patents).toEqual([]);
       expect(result.totalBlockingPatents).toBe(0);
     },
@@ -33,17 +34,15 @@ describe("notusClient", () => {
   );
 
   it(
-    "Test 3: fetchPatentLandscape handles network error → returns UNKNOWN, no crash",
+    "Test 3: fetchPatentLandscape(HMGCR) returns CLEAR (all statin patents expired)",
     async () => {
-      // Simulate a network error by passing a gene name that causes the URL to be unreachable
-      // We verify the function itself is resilient by calling with a valid gene
-      // and confirming the return shape is always correct even when service is down.
-      const result = await fetchPatentLandscape("PCSK9");
-      // Regardless of whether the service is up or down, the result must always be a valid PatentLandscape
+      const result = await fetchPatentLandscape("HMGCR");
       expect(result).toHaveProperty("ftoStatus");
       expect(result).toHaveProperty("patents");
       expect(result).toHaveProperty("totalBlockingPatents");
-      expect(["CLEAR", "RISK", "BLOCKED", "UNKNOWN"]).toContain(result.ftoStatus);
+      // All statin core patents expired → CLEAR FTO
+      expect(result.ftoStatus).toBe("CLEAR");
+      expect(result.totalBlockingPatents).toBe(0);
     },
     20_000
   );
