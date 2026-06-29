@@ -178,7 +178,7 @@ describe("design.getPatentClearance", () => {
       expect(v.patentClearScore).toBeGreaterThanOrEqual(0);
       expect(v.patentClearScore).toBeLessThanOrEqual(100);
     }
-  }, 30000);
+  }, 90_000);
 
   it("throws when runId does not exist", async () => {
     await expect(

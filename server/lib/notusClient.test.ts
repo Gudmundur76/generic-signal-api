@@ -8,12 +8,12 @@ import { fetchPatentLandscape } from "./notusClient";
 
 describe("notusClient", () => {
   it(
-    "Test 1: fetchPatentLandscape(PCSK9) returns BLOCKED with 4 active patents",
+    "Test 1: fetchPatentLandscape(PCSK9) returns RISK with 4 active patents (threshold 5+ for BLOCKED)",
     async () => {
       const result = await fetchPatentLandscape("PCSK9");
       expect(result).toBeDefined();
-      // PCSK9 has 4 active blocking patents in the embedded dataset → BLOCKED
-      expect(result.ftoStatus).toBe("BLOCKED");
+      // PCSK9 has 4 active blocking patents; threshold is 5+ for BLOCKED → RISK
+      expect(result.ftoStatus).toBe("RISK");
       expect(result.totalBlockingPatents).toBe(4);
       expect(Array.isArray(result.patents)).toBe(true);
       expect(result.patents.length).toBeGreaterThan(0);

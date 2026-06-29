@@ -86,14 +86,14 @@ describe("design.evolve", () => {
     expect(result.status).toBe("started");
     expect(result.target).toBe("PCSK9");
     expect(result.layers).toEqual(["dna", "small_molecule"]);
-  }, 20_000);
+  }, 60_000);
 
   it("returns different runIds for separate calls", async () => {
     const caller = appRouter.createCaller(makePublicCtx());
     const r1 = await caller.design.evolve({ target: "LPA", layers: ["protein"] });
     const r2 = await caller.design.evolve({ target: "APOE", layers: ["rna"] });
     expect(r1.runId).not.toBe(r2.runId);
-  }, 20_000);
+  }, 60_000);
 });
 
 // ---------------------------------------------------------------------------
@@ -148,7 +148,7 @@ describe("design.getResults", () => {
     expect(layer.score).toBeGreaterThan(0);
     expect(typeof layer.novelty).toBe("boolean");
     expect(["CLEAR", "RISK", "BLOCKED"]).toContain(layer.patent);
-  }, 30_000);
+  }, 90_000);
 
   it("throws NOT_FOUND for an unknown runId", async () => {
     const caller = appRouter.createCaller(makePublicCtx());

@@ -3,13 +3,13 @@
  *
  * Verifies:
  *  1. fetchPatentLandscape returns CLEAR/RISK/BLOCKED (never UNKNOWN) for all 8 targets
- *  2. PCSK9 returns BLOCKED (4 active patents)
+ *  2. PCSK9 returns RISK (4 active patents; threshold is now 5+ for BLOCKED)
  *  3. HMGCR returns CLEAR (all statin patents expired)
  *  4. APOE returns CLEAR (only expired diagnostic patent)
- *  5. CETP returns RISK (1 active patent — obicetrapib)
+ *  5. CETP returns BLOCKED (9 active patents — Sprint 15 correction)
  *  6. FALLBACK_SMILES provides canonical SMILES + pIC50 for all 8 targets
  *  7. TTR fallback SMILES is tafamidis with pIC50 = 8.52
- *  8. HMGCR fallback SMILES is atorvastatin with pIC50 = 8.9
+ *  8. HMGCR fallback SMILES is atorvastatin with pIC50 = 8.12 (Sprint 15: Burnett 1997)
  *  9. fetchMolecularData for small_molecule falls back to curated SMILES when ChEMBL unavailable
  * 10. Fallback MolecularData has canonicalSmiles and bioactivity.pIC50 set
  */
@@ -34,9 +34,9 @@ describe("Sprint 14 — notusClient embedded patent dataset", () => {
     }
   });
 
-  it("PCSK9 — BLOCKED (4 active patents: Amgen, Regeneron, Sanofi, Alnylam)", async () => {
+  it("PCSK9 — RISK (4 active patents; 5+ needed for BLOCKED: Amgen, Regeneron, Sanofi, Alnylam)", async () => {
     const landscape = await fetchPatentLandscape("PCSK9");
-    expect(landscape.ftoStatus).toBe("BLOCKED");
+    expect(landscape.ftoStatus).toBe("RISK");
     expect(landscape.totalBlockingPatents).toBe(4);
     const assignees = landscape.patents.map((p) => p.assignee);
     expect(assignees).toContain("Amgen Inc.");
@@ -59,22 +59,23 @@ describe("Sprint 14 — notusClient embedded patent dataset", () => {
     expect(landscape.totalBlockingPatents).toBe(0);
   });
 
-  it("CETP — RISK (1 active patent: obicetrapib)", async () => {
+  it("CETP — BLOCKED (9 active patents: NewAmsterdam Pharma portfolio, protection to 2043)", async () => {
     const landscape = await fetchPatentLandscape("CETP");
-    expect(landscape.ftoStatus).toBe("RISK");
-    expect(landscape.totalBlockingPatents).toBe(1);
-    expect(landscape.patents[0]?.assignee).toBe("NewAmsterdam Pharma");
+    expect(landscape.ftoStatus).toBe("BLOCKED");
+    expect(landscape.totalBlockingPatents).toBe(9);
+    const assignees = landscape.patents.map((p) => p.assignee);
+    expect(assignees.every((a) => a === "NewAmsterdam Pharma" || a === "Pfizer Inc.")).toBe(true);
   });
 
-  it("LPA — RISK (2 active patents: Novartis, Ionis)", async () => {
+  it("LPA — RISK (3 active patents: Novartis/olpasiran, Ionis/pelacarsen, Amgen method-of-use)", async () => {
     const landscape = await fetchPatentLandscape("LPA");
     expect(landscape.ftoStatus).toBe("RISK");
-    expect(landscape.totalBlockingPatents).toBe(2);
+    expect(landscape.totalBlockingPatents).toBe(3);
   });
 
-  it("TTR — BLOCKED (4 active patents: Alnylam x2, Pfizer, Ionis)", async () => {
+  it("TTR — RISK (4 active patents: Alnylam x2, Pfizer/tafamidis, Ionis; 5+ needed for BLOCKED)", async () => {
     const landscape = await fetchPatentLandscape("TTR");
-    expect(landscape.ftoStatus).toBe("BLOCKED");
+    expect(landscape.ftoStatus).toBe("RISK");
     expect(landscape.totalBlockingPatents).toBe(4);
     // Tafamidis cliff should be 2031 (Pfizer settlement)
     const tafamidis = landscape.patents.find((p) => p.patentNumber === "US8,729,058");
@@ -110,9 +111,9 @@ describe("Sprint 14 — FALLBACK_SMILES curated dataset", () => {
     expect(fb.smiles).toContain("oc(");
   });
 
-  it("HMGCR fallback is atorvastatin with pIC50 = 8.9", () => {
+  it("HMGCR fallback is atorvastatin with pIC50 = 8.12 (Burnett 1997, IC50 7.5 nM)", () => {
     const fb = FALLBACK_SMILES["HMGCR"];
-    expect(fb.pIC50).toBe(8.9);
+    expect(fb.pIC50).toBe(8.12);
     expect(fb.name).toContain("Atorvastatin");
   });
 

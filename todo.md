@@ -219,3 +219,18 @@
 - [x] Sprint 14 tests: 15 tests covering embedded patent data and SMILES fallback — all passing
 - [x] 0 TypeScript errors, 199 tests passing (18 test files, 2 skipped)
 - [x] Re-ran full platform routine — 0 UNKNOWN FTO statuses; pIC50 populated from fallback SMILES for all targets
+
+## Sprint 15 — Complete Fact-Check Corrections
+
+- [ ] Fix CETP: update totalBlockingPatents from 1 to 9 in notusClient.ts (NewAmsterdam Pharma has 9 issued/allowed US patents, protection to July 2043)
+- [ ] Fix ANGPTL3: update patentCliffYear from ~2033 to ~2028 in notusClient.ts (FDA Orphan Drug Exclusivity ends February 11, 2028)
+- [ ] Fix APOC3: update totalBlockingPatents from 2 to 6 in notusClient.ts (olezarsen alone has 6 US patents + 327 international families; generic entry May 1, 2034)
+- [ ] Fix PCSK9: update patent entry to note "multiple families per assignee" (4+ families, not exactly 4 patents)
+- [ ] Fix LPA: update totalBlockingPatents from 2 to 3 with note "2+ confirmed, likely undercount"
+- [ ] Fix HMGCR: update fallbackPIC50 from 8.90 to 8.12 in notusClient.ts (published IC50 = 7.5 nM, Burnett et al. 1997, pIC50 = -log10(7.5e-9) = 8.12)
+- [ ] Update ANGPTL3 patentCliffYear in design.ts TARGETS array to match notusClient correction
+- [ ] Update CETP patent count in design.ts TARGETS array description
+- [ ] Write Sprint 15 tests verifying all 6 corrected values
+- [ ] Re-run full platform routine and verify corrected pIC50 and patent counts appear in results
+- [ ] Fact-check the new results against primary sources
+- [ ] 0 TypeScript errors, all tests pass
