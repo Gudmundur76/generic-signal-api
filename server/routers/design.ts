@@ -587,6 +587,22 @@ export const designRouter = router({
 
       if (!run.converged) advanceRun(run);
 
+      // Map generation progress to a 7-step pipeline label
+      const STEP_LABELS = [
+        "Initialising",
+        "Fetching molecular data",
+        "Scoring candidates",
+        "Running novelty check",
+        "Patent FTO analysis",
+        "Quality gate",
+        "Converging",
+      ];
+      const currentStep = Math.min(
+        Math.max(1, Math.ceil((run.generation / run.maxGenerations) * 7)),
+        7,
+      );
+      const status: "running" | "complete" | "error" = run.converged ? "complete" : "running";
+
       return {
         runId: run.runId,
         target: run.target,
@@ -595,6 +611,10 @@ export const designRouter = router({
         bestScore: Math.round(run.bestScore * 10) / 10,
         converged: run.converged,
         progressPct: Math.round((run.generation / run.maxGenerations) * 100),
+        currentStep,
+        totalSteps: 7,
+        stepLabel: STEP_LABELS[currentStep - 1] ?? "Running",
+        status,
       };
     }),
 
@@ -977,6 +997,15 @@ export const designRouter = router({
         );
       });
 
-      return rankArbitrageOpportunities(opportunities);
+      const ranked = rankArbitrageOpportunities(opportunities);
+      // Attach topJurisdiction: the highest-opportunity jurisdiction for each candidate
+      return ranked.map((opp) => ({
+        ...opp,
+        topJurisdiction:
+          opp.highOpportunityJurisdictions[0] ??
+          [...opp.coverageByJurisdiction]
+            .sort((a, b) => a.coverageScore - b.coverageScore)[0]?.jurisdiction ??
+          "US",
+      }));
     }),
 });

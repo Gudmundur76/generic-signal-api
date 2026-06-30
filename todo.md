@@ -234,3 +234,12 @@
 - [ ] Re-run full platform routine and verify corrected pIC50 and patent counts appear in results
 - [ ] Fact-check the new results against primary sources
 - [ ] 0 TypeScript errors, all tests pass
+
+## Sprint 16 — Progress Tracker + Arbitrage Jurisdiction Fix
+
+- [x] Fix getProgress: returns currentStep (1-7), totalSteps=7, stepLabel (e.g. "Fetching molecular data"), status ("running"|"complete")
+- [x] Fix getPatentArbitrage: added topJurisdiction field to every ArbitrageOpportunity (highest-opportunity jurisdiction code)
+- [x] Fix runner console: progress now shows "step 2/7, status: running"; arbitrage shows real jurisdiction codes (CA, US, WO, IN, etc.)
+- [x] Sprint 16 tests: 13 tests covering getProgress step/label/status and getPatentArbitrage topJurisdiction — all passing
+- [x] 0 TypeScript errors, 222 tests passing (20 test files, 2 skipped)
+- [x] Re-ran manual platform routine — 0 ? fields; APOE/HMGCR FILE_NOW (US), CETP AVOID (IN), TTR/PCSK9 MONITOR (CA)
