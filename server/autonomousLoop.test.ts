@@ -71,7 +71,9 @@ import {
   createApprovalRequest,
   getPendingApprovals,
   approveRequest,
+  designCandidate,
   type PatentSignal,
+  type DnaEvolveResult,
 } from "./lib/autonomousLoop";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -164,6 +166,72 @@ describe("runAutonomousDistributionLoop", () => {
     // With no DB and no Notus, signals = 0, nothing delivered
     expect(result.signalsFound).toBe(0);
     expect(result.candidatesDelivered).toBe(0);
+  });
+});
+
+describe("DnaEvolveResult enrichment", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("Test 9a: designCandidate returns null when bus is unavailable and HTTP fails", async () => {
+    // Bus unavailable (PENDING_DIR does not exist in test env)
+    // HTTP fetch returns 503
+    mockFetch.mockResolvedValue({ ok: false, status: 503, json: async () => ({}) });
+    const signal: PatentSignal = { gene: "PCSK9", confidence: 0.90, source: "patent_cliff" };
+    const result = await designCandidate(signal);
+    expect(result).toBeNull();
+  });
+
+  it("Test 9b: designCandidate injects layer and notusEnriched into HTTP result", async () => {
+    // Simulate HTTP returning a result without layer/notusEnriched
+    const rawResult: Omit<DnaEvolveResult, "layer" | "notusEnriched"> = {
+      version: "2.0.0",
+      task: { targetGene: "PCSK9" },
+      timing: { evolutionMs: 100, totalMs: 200 },
+      topCandidates: [{ rank: 1, sequence: "GAGTCCGAGCAGAAGAAGAA", fitness: 75, generation: 10 }],
+      qualityGate: { novelty: 70, specificity: 80, composite: 0.82, pass: true },
+      verification: { confidence: 0.85, verdict: "Supported", pmids: ["12345678"] },
+    };
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => rawResult,
+    });
+    const signal: PatentSignal = { gene: "PCSK9", confidence: 0.90, source: "patent_cliff" };
+    const result = await designCandidate(signal);
+    // enrichResult should inject layer from getLayerForGene("PCSK9") = "dna"
+    expect(result).not.toBeNull();
+    expect(result!.layer).toBe("dna");
+    expect(result!.notusEnriched).toBe(false);
+    // Verification should pass through unchanged
+    expect(result!.verification?.confidence).toBe(0.85);
+    expect(result!.verification?.verdict).toBe("Supported");
+    expect(result!.verification?.pmids).toContain("12345678");
+  });
+
+  it("Test 9c: designCandidate preserves layer if already set by runner", async () => {
+    const rawResult: DnaEvolveResult = {
+      version: "2.0.0",
+      task: { targetGene: "HMGCR" },
+      timing: { evolutionMs: 100, totalMs: 200 },
+      topCandidates: [{ rank: 1, sequence: "[SMILES_HMGCR]", fitness: 65, generation: 5 }],
+      qualityGate: { novelty: 60, specificity: 70, composite: 0.75, pass: true },
+      layer: "small_molecule", // runner already set this
+      notusEnriched: true,
+      verification: null,
+    };
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => rawResult,
+    });
+    const signal: PatentSignal = { gene: "HMGCR", confidence: 0.90, source: "patent_cliff" };
+    const result = await designCandidate(signal);
+    expect(result).not.toBeNull();
+    // Runner-provided layer should be preserved (not overwritten by getLayerForGene)
+    expect(result!.layer).toBe("small_molecule");
+    expect(result!.notusEnriched).toBe(true);
   });
 });
 

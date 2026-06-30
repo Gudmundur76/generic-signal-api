@@ -199,6 +199,17 @@ const deliverySchema = z.object({
   noveltyScore: z.number().int().min(0).max(100),
   compositeScore: z.number().int().min(0).max(100),
   fto: z.enum(["CLEAR", "RISK", "BLOCKED"]),
+  // Extended fields from autonomous loop (all optional for backward compat)
+  sequence: z.string().max(512).optional(),
+  layer: z.enum(["dna", "rna", "protein", "small_molecule"]).optional(),
+  fitness: z.number().optional(),
+  specificityScore: z.number().int().min(0).max(100).optional(),
+  patentNumber: z.string().max(64).nullable().optional(),
+  source: z.string().max(64).optional(),
+  notusEnriched: z.boolean().optional(),
+  verificationVerdict: z.string().max(128).nullable().optional(),
+  verificationPmids: z.array(z.string().max(32)).optional(),
+  verificationSummary: z.string().max(1024).nullable().optional(),
 });
 
 const royaltySchema = z.object({
@@ -463,9 +474,24 @@ export const partnersRouter = router({
         .set({ candidatesDelivered: sql`candidatesDelivered + 1` })
         .where(eq(partners.id, input.partnerId));
 
+      const deliveryId = (result as unknown as [{ insertId: number }])[0].insertId;
+
+      // Log extended autonomous-loop fields for auditability (not persisted to DB
+      // unless schema is extended, but visible in server logs for tracing)
+      if (input.source === "autonomous_loop") {
+        console.log(
+          `[partners] Autonomous delivery #${deliveryId}: gene=${input.gene}, ` +
+          `layer=${input.layer ?? "unknown"}, fitness=${input.fitness?.toFixed(2) ?? "n/a"}, ` +
+          `specificity=${input.specificityScore ?? "n/a"}, ` +
+          `notusEnriched=${input.notusEnriched ?? false}, ` +
+          `verdict=${input.verificationVerdict ?? "none"}, ` +
+          `pmids=${(input.verificationPmids ?? []).join(",") || "none"}`
+        );
+      }
+
       return {
         success: true,
-        deliveryId: (result as unknown as [{ insertId: number }])[0].insertId,
+        deliveryId,
       };
     }),
 

@@ -87,6 +87,17 @@ export interface DnaEvolveResult {
     composite: number;
     pass: boolean;
   };
+  /** Layer used for this candidate (dna | rna | protein | small_molecule) */
+  layer?: string;
+  /** Whether the seed was enriched from a notus-is bus result */
+  notusEnriched?: boolean;
+  /** Citation/literature verification result from dna-evolve */
+  verification?: {
+    confidence: number;
+    verdict: string;
+    pmids?: string[];
+    summary?: string;
+  } | null;
 }
 
 interface Decision {
@@ -330,13 +341,24 @@ export async function designCandidate(signal: PatentSignal): Promise<DnaEvolveRe
     notusEnriched,
   };
 
+  // Helper: post-process the raw result to ensure layer/notusEnriched are present
+  // (bus runner may not echo them back, so we inject from the request)
+  function enrichResult(raw: DnaEvolveResult | null): DnaEvolveResult | null {
+    if (!raw) return null;
+    return {
+      ...raw,
+      layer: raw.layer ?? layer,
+      notusEnriched: raw.notusEnriched ?? notusEnriched,
+    };
+  }
+
   // ── Try GitHub bus first (works on Manus where HTTP is unreliable) ──────────
   try {
     const { isBusAvailable, busDesignCandidate } = await import('./dnaEvolveBusClient');
     if (isBusAvailable()) {
       console.log(`[autonomous] Using GitHub bus for dna-evolve (gene: ${signal.gene})`);
       const busResult = await busDesignCandidate(request);
-      if (busResult) return busResult;
+      if (busResult) return enrichResult(busResult);
       console.warn('[autonomous] Bus returned null — falling back to HTTP');
     }
   } catch {
@@ -352,7 +374,8 @@ export async function designCandidate(signal: PatentSignal): Promise<DnaEvolveRe
       signal: AbortSignal.timeout(120000), // 2 minute timeout
     });
     if (!response.ok) return null;
-    return response.json() as Promise<DnaEvolveResult>;
+    const httpResult = await response.json() as DnaEvolveResult;
+    return enrichResult(httpResult);
   } catch {
     return null;
   }
@@ -419,24 +442,56 @@ async function deliverToPartner(
   const best = evolveResult.topCandidates[0];
   if (!best) return;
 
-  await fetch(`${AutonomousConfig.endpoints.genericSignal}/api/trpc/partners.deliver`, {
+  // Build a full candidate payload that matches the deliverySchema in partners.ts
+  // and carries all the rich data from the dna-evolve result.
+  const compositeScore = Math.round((evolveResult.qualityGate?.composite ?? 0) * 100);
+  const noveltyScore = Math.round(evolveResult.qualityGate?.novelty ?? 50);
+  const specificityScore = Math.round(evolveResult.qualityGate?.specificity ?? 50);
+  const layer = (evolveResult.layer ?? getLayerForGene(signal.gene)) as
+    "dna" | "rna" | "protein" | "small_molecule";
+  const therapeuticArea = getTherapeuticArea(signal.gene);
+  const candidateId = `CAND-${Date.now()}-${partnerId}-${signal.gene}`;
+
+  // Determine FTO status from verification confidence
+  const verificationConfidence = evolveResult.verification?.confidence ?? 0;
+  const fto: "CLEAR" | "RISK" | "BLOCKED" =
+    verificationConfidence >= 0.8 ? "CLEAR" :
+    verificationConfidence >= 0.5 ? "RISK" : "BLOCKED";
+
+  // ── Use the correct tRPC route: partners.recordDelivery ──────────────────────
+  await fetch(`${AutonomousConfig.endpoints.genericSignal}/api/trpc/partners.recordDelivery`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      candidateId,
       partnerId,
-      candidate: {
-        gene: signal.gene,
-        sequence: best.sequence,
-        fitness: best.fitness,
-        composite: evolveResult.qualityGate?.composite,
-        patentNumber: signal.patentNumber,
-        source: "autonomous_loop",
-      },
+      gene: signal.gene,
+      therapeuticArea,
+      noveltyScore,
+      compositeScore,
+      fto,
+      // Extended fields for partner-facing candidate package
+      sequence: best.sequence,
+      layer,
+      fitness: best.fitness,
+      specificityScore,
+      patentNumber: signal.patentNumber ?? null,
+      source: "autonomous_loop",
+      notusEnriched: evolveResult.notusEnriched ?? false,
+      verificationVerdict: evolveResult.verification?.verdict ?? null,
+      verificationPmids: evolveResult.verification?.pmids ?? [],
+      verificationSummary: evolveResult.verification?.summary ?? null,
     }),
     signal: AbortSignal.timeout(10000),
-  }).catch(() => {
-    console.warn(`[autonomous] Delivery to partner ${partnerId} failed`);
+  }).catch((e) => {
+    console.warn(`[autonomous] Delivery to partner ${partnerId} failed:`, (e as Error).message);
   });
+
+  console.log(
+    `[autonomous] Delivered ${signal.gene} (${layer}) to partner #${partnerId}: ` +
+    `composite=${compositeScore}, novelty=${noveltyScore}, fto=${fto}, ` +
+    `notusEnriched=${evolveResult.notusEnriched ?? false}`
+  );
 }
 
 // ─── STEP 7: TRACK ────────────────────────────────────────────────────────────
@@ -447,16 +502,23 @@ async function logDistributionEvent(
   partnerId: number,
 ): Promise<void> {
   const best = evolveResult.topCandidates[0];
+  const compositeScore = Math.round((evolveResult.qualityGate?.composite ?? 0) * 100);
   await insertDistributionEvent({
     signalSource: signal.source,
     gene: signal.gene,
     patentNumber: signal.patentNumber,
     sequence: best?.sequence ?? "",
-    compositeScore: Math.round((evolveResult.qualityGate?.composite ?? 0) * 100),
+    compositeScore,
     partnerId,
     status: "delivered",
     deliveredAt: new Date(),
   });
+  console.log(
+    `[autonomous] Distribution event logged: gene=${signal.gene}, ` +
+    `layer=${evolveResult.layer ?? "unknown"}, composite=${compositeScore}, ` +
+    `partner=${partnerId}, notusEnriched=${evolveResult.notusEnriched ?? false}, ` +
+    `verificationVerdict=${evolveResult.verification?.verdict ?? "none"}`
+  );
 }
 
 // ─── Approval Queue ───────────────────────────────────────────────────────────
