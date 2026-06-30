@@ -290,22 +290,67 @@ export function evaluateSignal(signal: PatentSignal): Decision {
 export async function designCandidate(signal: PatentSignal): Promise<DnaEvolveResult | null> {
   const layer = getLayerForGene(signal.gene);
 
+  // ── Enrich seed with best notus-is candidate from GitHub bus ─────────────────
+  // If notus-is has published a high-confidence small-molecule candidate,
+  // derive a seed sequence from it. This creates a cross-layer feedback loop:
+  // small molecule discovery informs nucleic acid design for the same target.
+  let seed = generateSeedForGene(signal.gene);
+  let notusEnriched = false;
+  try {
+    const { readLatestNotusResult, hasFreshBusResults } = await import('./notusIsBusReader');
+    if (hasFreshBusResults()) {
+      const notusResult = readLatestNotusResult();
+      if (notusResult?.bestCandidate && notusResult.bestCandidate.pic50 >= 7.0) {
+        const smilesHash = notusResult.bestCandidate.smiles
+          .split('')
+          .reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
+        const variants = ['A', 'T', 'G', 'C'];
+        const baseSeed = seed.split('');
+        for (let i = 0; i < 8; i++) {
+          baseSeed[i * 2] = variants[(smilesHash + i) % 4];
+        }
+        seed = baseSeed.join('');
+        notusEnriched = true;
+        console.log(
+          `[autonomous] Seed enriched from notus-is bus: pIC50=${notusResult.bestCandidate.pic50.toFixed(2)}, ` +
+          `verdict=${notusResult.bestCandidate.citationVerdict ?? 'unverified'}`
+        );
+      }
+    }
+  } catch { /* non-fatal — use default seed */ }
+
+  const request = {
+    seed,
+    targetGene: signal.gene,
+    layer,
+    generations: 20,
+    population: 50,
+    topN: 3,
+    verify: true,
+    notusEnriched,
+  };
+
+  // ── Try GitHub bus first (works on Manus where HTTP is unreliable) ──────────
+  try {
+    const { isBusAvailable, busDesignCandidate } = await import('./dnaEvolveBusClient');
+    if (isBusAvailable()) {
+      console.log(`[autonomous] Using GitHub bus for dna-evolve (gene: ${signal.gene})`);
+      const busResult = await busDesignCandidate(request);
+      if (busResult) return busResult;
+      console.warn('[autonomous] Bus returned null — falling back to HTTP');
+    }
+  } catch {
+    console.warn('[autonomous] Bus client unavailable — falling back to HTTP');
+  }
+
+  // ── Fallback: direct HTTP (works in local dev / non-Manus environments) ─────
   try {
     const response = await fetch(`${AutonomousConfig.endpoints.dnaEvolve}/v1/evolve`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        seed: generateSeedForGene(signal.gene),
-        targetGene: signal.gene,
-        layer,
-        generations: 20,
-        population: 50,
-        topN: 3,
-        verify: true,
-      }),
+      body: JSON.stringify(request),
       signal: AbortSignal.timeout(120000), // 2 minute timeout
     });
-
     if (!response.ok) return null;
     return response.json() as Promise<DnaEvolveResult>;
   } catch {
