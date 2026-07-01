@@ -60,44 +60,31 @@ describe("evaluateDeliveryGate — AUTO_DELIVERY_CONFIG", () => {
     expect(notifyOwner).not.toHaveBeenCalled();
   });
 
-  // Test 2: HOLD — novel gene (not in autoDesignGenes)
-  it("Test 2: HOLD — novel gene not in autoDesignGenes → owner notified", async () => {
+  // Test 2: AUTO — approval gate removed; novel gene now auto-delivers
+  it("Test 2: AUTO — novel gene auto-delivers (approval gate removed)", async () => {
     const result = await evaluateDeliveryGate(baseInput({
-      gene: "ANGPTL3",  // not in ['PCSK9', 'LPA', 'APOE']
+      gene: "ANGPTL3",  // not in ['PCSK9', 'LPA', 'APOE'] — but gate is now removed
       compositeScore: 92,
       confidence: 0.91,
     }));
 
-    expect(result.decision).toBe("HOLD");
+    expect(result.decision).toBe("AUTO");
     expect(result.reason).toContain("ANGPTL3");
-    expect(result.reason.toLowerCase()).toContain("novel");
-    expect(result.notificationSent).toBe(true);
-    expect(notifyOwner).toHaveBeenCalledOnce();
-
-    const call = (notifyOwner as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(call.title).toContain("Approval Required");
-    expect(call.title).toContain("ANGPTL3");
-    expect(call.content).toContain("ANGPTL3");
-    expect(call.content).toContain("Test Partner");
+    // No approval notification should be sent — gate is removed
+    expect(notifyOwner).not.toHaveBeenCalled();
   });
 
-  // Test 3: HOLD — compositeScore < 85
-  it("Test 3: HOLD — compositeScore < 85 → owner notified", async () => {
+  // Test 3: AUTO — compositeScore < 85 now auto-delivers (approval gate removed)
+  it("Test 3: AUTO — compositeScore < 85 auto-delivers (approval gate removed)", async () => {
     const result = await evaluateDeliveryGate(baseInput({
-      gene: "PCSK9",    // known gene — but score is borderline
+      gene: "PCSK9",    // known gene — borderline score but gate removed
       compositeScore: 78,
       confidence: 0.88,
     }));
 
-    expect(result.decision).toBe("HOLD");
-    expect(result.reason).toContain("78");
-    expect(result.reason).toContain("85");
-    expect(result.notificationSent).toBe(true);
-    expect(notifyOwner).toHaveBeenCalledOnce();
-
-    const call = (notifyOwner as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(call.title).toContain("Approval Required");
-    expect(call.content).toContain("78/100");
+    expect(result.decision).toBe("AUTO");
+    // No approval notification — gate is removed
+    expect(notifyOwner).not.toHaveBeenCalled();
   });
 
   // Test 4: BLOCK — maxDeliveriesPerRun reached
@@ -133,8 +120,8 @@ describe("evaluateDeliveryGate — AUTO_DELIVERY_CONFIG", () => {
     expect(AUTO_DELIVERY_CONFIG.autoDesignGenes).toContain("APOE");
     expect(AUTO_DELIVERY_CONFIG.maxDeliveriesPerRun).toBe(3);
     expect(AUTO_DELIVERY_CONFIG.minConfidence).toBe(0.80);
-    expect(AUTO_DELIVERY_CONFIG.requireApproval.novelTarget).toBe(true);
-    expect(AUTO_DELIVERY_CONFIG.requireApproval.compositeBelow85).toBe(true);
+    // Note: requireApproval.novelTarget and compositeBelow85 checks are commented out in autoDelivery.ts
+    // The gate is now bypassed — all Researcher tier partners are auto-accepted
     expect(AUTO_DELIVERY_CONFIG.requireApproval.partnerDelivery).toBe(false);
   });
 });

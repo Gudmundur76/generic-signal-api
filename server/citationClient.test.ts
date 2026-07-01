@@ -33,9 +33,16 @@ function networkErrorFetch() {
 
 describe("verifyClaims", () => {
   const originalFetch = globalThis.fetch;
+  const originalCitationApiKey = process.env.CITATION_API_KEY;
+
+  beforeEach(() => {
+    // Set a dummy API key so verifyClaims uses the primary path (not PubMed fallback)
+    process.env.CITATION_API_KEY = "test-citation-key";
+  });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    process.env.CITATION_API_KEY = originalCitationApiKey;
     vi.restoreAllMocks();
   });
 

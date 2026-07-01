@@ -9,4 +9,5 @@ export const ENV = {
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
   notusApiKey: process.env.NOTUS_API_KEY ?? "",
   citationApiKey: process.env.CITATION_API_KEY ?? "",
+  loopServiceKey: process.env.LOOP_SERVICE_KEY ?? "",
 };

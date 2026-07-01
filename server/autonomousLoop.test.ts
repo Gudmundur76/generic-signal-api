@@ -118,16 +118,16 @@ describe("generateSeedForGene", () => {
 });
 
 describe("getLayerForGene", () => {
-  it("Test 5a: PCSK9 → dna", () => {
-    expect(getLayerForGene("PCSK9")).toBe("dna");
+  it("Test 5a: PCSK9 → crispr-grna (CRISPR guide for LDL-lowering gene editing)", () => {
+    expect(getLayerForGene("PCSK9")).toBe("crispr-grna");
   });
 
-  it("Test 5b: ANGPTL3 → protein", () => {
-    expect(getLayerForGene("ANGPTL3")).toBe("protein");
+  it("Test 5b: ANGPTL3 → aso (Antisense oligo)", () => {
+    expect(getLayerForGene("ANGPTL3")).toBe("aso");
   });
 
-  it("unknown gene defaults to dna", () => {
-    expect(getLayerForGene("XYZGENE")).toBe("dna");
+  it("unknown gene defaults to crispr-grna", () => {
+    expect(getLayerForGene("XYZGENE")).toBe("crispr-grna");
   });
 });
 
@@ -200,9 +200,9 @@ describe("DnaEvolveResult enrichment", () => {
     });
     const signal: PatentSignal = { gene: "PCSK9", confidence: 0.90, source: "patent_cliff" };
     const result = await designCandidate(signal);
-    // enrichResult should inject layer from getLayerForGene("PCSK9") = "dna"
+    // enrichResult should inject layer from getLayerForGene("PCSK9") = "crispr-grna"
     expect(result).not.toBeNull();
-    expect(result!.layer).toBe("dna");
+    expect(result!.layer).toBe("crispr-grna");
     expect(result!.notusEnriched).toBe(false);
     // Verification should pass through unchanged
     expect(result!.verification?.confidence).toBe(0.85);

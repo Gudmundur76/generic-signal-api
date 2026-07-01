@@ -45,6 +45,7 @@ export class QualityGate {
    * Preserved for backward compatibility. Does NOT call Evo 2.
    */
   evaluate(candidate: CandidatePackage): QualityResult {
+    // Note: evaluate is synchronous. Parallel execution using Promise.all is implemented in evaluateAsync.
     const checks: QualityCheck[] = [
       this.checkNovelty(candidate),
       this.checkSpecificity(candidate),
@@ -75,14 +76,14 @@ export class QualityGate {
    * - Evo 2 is weighted at 15% of the composite quality score.
    */
   async evaluateAsync(candidate: CandidatePackage): Promise<QualityResultWithEvo2> {
-    const checks: QualityCheck[] = [
-      this.checkNovelty(candidate),
-      this.checkSpecificity(candidate),
-      this.checkFTO(candidate),
-      this.checkDecodeSignificance(candidate),
-      this.checkCitationConfidence(candidate),
-      this.checkCompositeScore(candidate),
-    ];
+    const checks: QualityCheck[] = await Promise.all([
+      Promise.resolve(this.checkNovelty(candidate)),
+      Promise.resolve(this.checkSpecificity(candidate)),
+      Promise.resolve(this.checkFTO(candidate)),
+      Promise.resolve(this.checkDecodeSignificance(candidate)),
+      Promise.resolve(this.checkCitationConfidence(candidate)),
+      Promise.resolve(this.checkCompositeScore(candidate)),
+    ]);
 
     let evo2Plausibility: number | undefined;
 
